@@ -1,0 +1,37 @@
+*.iml
+.gradle
+.kotlin
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+.env
+debug.keystore
+
+# --- pre-launch hygiene (2026-10-11): machine-local noise and user-content evidence ---
+/.antigravity/
+/.qoder/
+/.agents/
+/.vscode/
+/docs/ALL_DOCS_COMBINED.md
+/firebase-applet-config.json
+/metadata.json
+# archived evidence that contains real conversation text or screenshots of it
+/docs/reports/raw/
+/docs/reports/agy/*.xml
+/docs/reports/agy/*.png
+/docs/reports/agy/*.pdf
+/docs/reports/agy/*.docx
+/docs/reports/agy/*.pptx
+/docs/reports/agy/*.json
+/docs/reports/agy/*.txt
+/docs/reports/agy/*.html

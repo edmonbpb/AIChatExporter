@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+  Legacy auto-backup rule set for Android 11 (API 30) and older; referenced by
+  android:fullBackupContent in AndroidManifest.xml. minSdk is 29 and this format is read up to
+  API 30, so the channel still matters on Android 10 and 11 - see res/xml/data_extraction_rules.xml
+  for the Android 12+ twin, which carries the same exclusions.
+
+  android:allowBackup="false" already stops the backup agent from running, so the rules below are
+  defence in depth: if that flag is ever flipped back, the chat database, the preferences that hold
+  the auth session plus the reader/Gemini keys, and the exported documents folder still stay home.
+
+  Paths are relative to their domain inside the app data dir (/data/user/<userId>/<package>/):
+    domain="database"   data/local/AppDatabase.kt:35           -> aichat_exporter.db (+ -wal/-shm)
+    domain="sharedpref" ui/viewmodel/MainViewModel.kt:79       -> aichat_auth_prefs.xml
+    domain="file"       domain/exporter/DocumentExporter.kt:43 -> documents/
+    domain="file"       data/local/ResumeDraftStore.kt:53      -> resume_draft.json (+ .tmp)
+-->
+<full-backup-content>
+    <!-- Nothing in the app data directory is eligible; the named entries below repeat that per
+         domain so the intent survives even if a broad path exclusion is ignored by a transport. -->
+    <exclude domain="root" path="." />
+    <exclude domain="database" path="." />
+    <exclude domain="sharedpref" path="." />
+    <exclude domain="file" path="." />
+    <exclude domain="database" path="aichat_exporter.db" />
+    <exclude domain="database" path="aichat_exporter.db-wal" />
+    <exclude domain="database" path="aichat_exporter.db-shm" />
+    <exclude domain="sharedpref" path="aichat_auth_prefs.xml" />
+    <exclude domain="file" path="documents/" />
+    <exclude domain="file" path="resume_draft.json" />
+    <exclude domain="file" path="resume_draft.json.tmp" />
+</full-backup-content>
