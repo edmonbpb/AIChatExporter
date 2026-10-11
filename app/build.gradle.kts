@@ -8,6 +8,22 @@ plugins {
   alias(libs.plugins.google.services)
 }
 
+// A public artifact must not carry the owner's AI key: anyone who installs it could spend that
+// quota. -PpublicBuild=true strips it; the app then uses only the key the user enters themselves.
+val publicBuild = (findProperty("publicBuild") as? String)?.toBoolean() == true
+
+// Measured 2026-10-11: the secrets plugin mutates a list the configuration cache does not
+// fingerprint, so a cached entry stored by a -PpublicBuild run was reused by an ordinary debug
+// build and silently dropped BuildConfig.GEMINI_API_KEY (compileDebugKotlin: unresolved reference).
+// The flag is only trustworthy on a cache-free configuration.
+if (publicBuild && gradle.startParameter.isConfigurationCacheRequested) {
+  throw GradleException(
+    "-PpublicBuild=true must be combined with --no-configuration-cache, otherwise the stripped " +
+      "key can leak into the next build's cached configuration. Verify every public bundle by " +
+      "searching its dex files for the key."
+  )
+}
+
 android {
   namespace = "com.example"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
@@ -20,6 +36,10 @@ android {
     versionName = "1.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+    if (publicBuild) {
+      buildConfigField("String", "GEMINI_API_KEY", "\"\"")
+    }
   }
 
   signingConfigs {
@@ -72,6 +92,9 @@ secrets {
   propertiesFileName = ".env"
   defaultPropertiesFileName = ".env.example"
   ignoreList.add("FIREBASE_APPCHECK_DEBUG_TOKEN")
+  if (publicBuild) {
+    ignoreList.add("GEMINI_API_KEY")
+  }
 }
 
 googleServices { missingGoogleServicesStrategy = MissingGoogleServicesStrategy.WARN }
