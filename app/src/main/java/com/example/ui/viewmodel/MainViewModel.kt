@@ -2,6 +2,7 @@ package com.example.ui.viewmodel
 
 import android.app.Application
 import android.content.Context
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.local.AppDatabase
@@ -44,6 +45,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.FileNotFoundException
 import java.util.UUID
 
 data class DistillationUiState(
@@ -1016,12 +1018,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 )
                 _userMessage.value = "سند «${record.fileName}» با موفقیت صادر شد! 📄"
             }.onFailure { err ->
+                // B-29: the raw text of this exception is an absolute path plus a Java ErrnoException
+                // string, and an LTR path printed inside an RTL paragraph is even reordered as it is read.
+                // It leaves the screen and goes to logcat, where the stack trace is the useful part.
+                Log.w("ExportFailure", "DocumentExporter.exportDocument failed", err)
                 _exportState.value = _exportState.value.copy(
                     isExporting = false,
-                    errorMessage = err.message ?: "خطا در تولید سند."
+                    errorMessage = exportFailureNotice(err)
                 )
             }
         }
+    }
+
+    /**
+     * What the export card may show when [DocumentExporter.exportDocument] fails: the consequence, in
+     * the reader's language. Never the path and never the syscall string the exception carries, neither
+     * of which the reader can act on.
+     */
+    private fun exportFailureNotice(err: Throwable): String = when (err) {
+        is FileNotFoundException -> "جایِ ذخیرهٔ سند باز نمی‌شود."
+        else -> "ساختن سند روی این دستگاه ممکن نشد."
     }
 
     fun deleteExportRecord(id: String) {

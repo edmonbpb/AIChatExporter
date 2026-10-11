@@ -239,7 +239,8 @@ fun SavedSessionCard(
     onDelete: () -> Unit
 ) {
     val platform = PlatformPreset.fromString(entity.platformId)
-    val dateStr = SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault()).format(Date(entity.updatedAt))
+    // Locale.US keeps the intermediate string ASCII; the digits the reader sees belong to the switch, not to the handset.
+    val dateStr = SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.US).format(Date(entity.updatedAt))
 
     Card(
         modifier = Modifier
@@ -306,9 +307,9 @@ fun ExportRecordCard(
     onShare: () -> Unit,
     onDelete: () -> Unit
 ) {
-    // Same idiom as SavedSessionCard's date line: one SimpleDateFormat at the card's own timestamp,
-    // converted only at render so the digits switch cannot drift between the two cards.
-    val dateStr = SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault()).format(Date(record.exportedAt))
+    // Same idiom as SavedSessionCard's date line, Locale.US included: one SimpleDateFormat at the card's
+    // own timestamp, converted only at render so the digits switch cannot drift between the two cards.
+    val dateStr = SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.US).format(Date(record.exportedAt))
 
     Card(
         modifier = Modifier

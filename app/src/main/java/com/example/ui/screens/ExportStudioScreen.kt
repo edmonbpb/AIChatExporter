@@ -440,7 +440,10 @@ fun ExportStudioScreen(
         // Export Failure Card (B-21). `exportState.errorMessage` was written by MainViewModel and
         // cleared at the start of the next attempt, but nothing read it. It sits directly under the
         // button that failed, above the success card, so the reason is read where the tap happened.
-        // It needs no dismiss action of its own: the next attempt clears it at MainViewModel.kt:963.
+        // It needs no dismiss action of its own: `performExport` clears it when the next attempt starts.
+        // B-29: the small detail line carries the Persian consequence the view model put in
+        // `errorMessage`. It is not the exception message: that one is an absolute path plus a Java
+        // ErrnoException string, and it is written to logcat under `ExportFailure` instead of here.
         if (exportState.errorMessage != null) {
             Spacer(modifier = Modifier.height(16.dp))
 
