@@ -67,7 +67,18 @@ data class ExportUiState(
     val customTitle: String = "",
     val lastExportedRecord: ExportRecord? = null,
     val errorMessage: String? = null
-)
+) {
+    /** The one place the screen's switches become document options, so the export and its preview cannot drift. */
+    fun toExportOptions(sessionTitle: String): ExportOptions = ExportOptions(
+        format = selectedFormat,
+        includeMetadataTable = includeMetadata,
+        includeExecutiveSummary = includeSummary,
+        includeCodeBlocks = includeCode,
+        convertToPersianDigits = convertPersianDigits,
+        // Decided here, not left null for the exporter to patch: one route to the printed title.
+        customTitle = customTitle.takeIf { it.isNotBlank() } ?: sessionTitle
+    )
+}
 
 private val LEGACY_INVENTED_EMAILS = setOf("user.verified@gmail.com", "user.google@gmail.com")
 
@@ -381,9 +392,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         format = ExportFormat.JSON,
                         filePath = archiveFile.absolutePath,
                         // Was "${archiveFile.length() / 1024} KB", which floored every archive under 1024
-                        // bytes to "0 KB". Same three branches as DocumentExporter.formatFileSize, which is
-                        // private there and so not reachable from here.
-                        fileSizeFormatted = formatArchiveSize(archiveFile.length())
+                        // bytes to "0 KB". The exporter's formatter answers for it now, so there is one.
+                        fileSizeFormatted = DocumentExporter.formatFileSize(archiveFile.length())
                     )
                 }
                 exportDao.insertExportRecord(
@@ -404,17 +414,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 onError(e.message ?: "ساختن فایل آرشیو روی این دستگاه ممکن نشد.")
             }
         }
-    }
-
-    /**
-     * Sizes below one kilobyte used to read "0 KB" because the caller divided by 1024 first. Units stay
-     * Latin here exactly as in DocumentExporter.formatFileSize; the digit script is decided at render time
-     * (BidiEngine.toPersianDigits on the toast, the usePersianDigits toggle on the library cards).
-     */
-    private fun formatArchiveSize(bytes: Long): String = when {
-        bytes < 1024 -> "$bytes B"
-        bytes < 1024L * 1024L -> "${bytes / 1024} KB"
-        else -> String.format(java.util.Locale.US, "%.1f MB", bytes / (1024.0 * 1024.0))
     }
 
     private fun persistUser(profile: UserProfile) {
@@ -963,14 +962,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _exportState.value = _exportState.value.copy(isExporting = true, errorMessage = null)
 
         viewModelScope.launch {
-            val options = ExportOptions(
-                format = _exportState.value.selectedFormat,
-                includeMetadataTable = _exportState.value.includeMetadata,
-                includeExecutiveSummary = _exportState.value.includeSummary,
-                includeCodeBlocks = _exportState.value.includeCode,
-                convertToPersianDigits = _exportState.value.convertPersianDigits,
-                customTitle = _exportState.value.customTitle.takeIf { it.isNotBlank() } ?: session.title
-            )
+            val options = _exportState.value.toExportOptions(session.title)
 
             val exportResult = withContext(Dispatchers.IO) {
                 DocumentExporter.exportDocument(

@@ -57,7 +57,6 @@ import androidx.compose.ui.unit.sp
 import com.example.data.model.ExportFormat
 import com.example.domain.bidi.BidiEngine
 import com.example.domain.exporter.DocumentExporter
-import com.example.domain.exporter.ExportOptions
 import com.example.domain.exporter.FileShareHelper
 import com.example.ui.components.AdaptiveLabel
 import com.example.ui.components.AppScreen
@@ -314,14 +313,7 @@ fun ExportStudioScreen(
             // same options the export button hands the exporter. `remember` is keyed on that option
             // set, so it is rebuilt when the format or the title changes and not on every
             // recomposition, and it is only built at all while the preview is open.
-            val previewOptions = ExportOptions(
-                format = exportState.selectedFormat,
-                includeMetadataTable = exportState.includeMetadata,
-                includeExecutiveSummary = exportState.includeSummary,
-                includeCodeBlocks = exportState.includeCode,
-                convertToPersianDigits = exportState.convertPersianDigits,
-                customTitle = exportState.customTitle.takeIf { it.isNotBlank() }
-            )
+            val previewOptions = exportState.toExportOptions(activeSession.title)
             val previewLines = remember(previewOptions, distillationState.currentResult, activeSession) {
                 DocumentExporter.previewLines(
                     session = activeSession,

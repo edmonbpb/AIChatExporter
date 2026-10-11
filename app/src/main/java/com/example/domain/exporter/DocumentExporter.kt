@@ -26,9 +26,7 @@ data class ExportOptions(
     val includeExecutiveSummary: Boolean = true,
     val includeCodeBlocks: Boolean = true,
     val convertToPersianDigits: Boolean = true,
-    val customTitle: String? = null,
-    val customSubtitle: String? = null,
-    val authorName: String = "AIChatExporter System"
+    val customTitle: String? = null
 )
 
 object DocumentExporter {
@@ -622,7 +620,8 @@ object DocumentExporter {
         return root.toString(2)
     }
 
-    private fun formatFileSize(bytes: Long): String {
+    /** The app's one size string, shared with the archive record; units stay Latin because the digit script is decided at render time. */
+    internal fun formatFileSize(bytes: Long): String {
         return when {
             bytes < 1024 -> "$bytes B"
             bytes < 1024 * 1024 -> "${bytes / 1024} KB"
