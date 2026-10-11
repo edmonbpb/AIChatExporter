@@ -118,7 +118,7 @@ app/src/main/
 | مورد | مقدار واقعی | آنچه طرح زیر می‌گفت |
 |---|---|---|
 | namespace / applicationId | `com.example` / `com.aistudio.aichatexporter.kxrtva` | `com.aistudio.aichatexporter.prod` |
-| compileSdk / minSdk / targetSdk | `36.1` / `24` / `36` | `35` / `26` / `35` |
+| compileSdk / minSdk / targetSdk | `36.1` / `29` / `36` | `35` / `26` / `35` |
 | AGP / Kotlin / KSP | `9.1.1` / `2.2.10` / `2.3.5` | — |
 | Compose BOM / Room | `2024.09.00` / `2.7.0` | — |
 | OkHttp / Coroutines | `4.10.0` / `1.10.2` | `4.12.0` / `1.8.0` |
