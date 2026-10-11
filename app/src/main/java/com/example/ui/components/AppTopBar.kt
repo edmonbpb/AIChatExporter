@@ -77,9 +77,13 @@ fun AppTopBar(
                         Text(
                             text = "AIChatExporter",
                             style = MaterialTheme.typography.titleMedium.copy(
+                                fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
-                            )
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Box(
