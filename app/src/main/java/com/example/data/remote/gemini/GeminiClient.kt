@@ -347,7 +347,7 @@ $currentContent
         // The date is a number the reader of the exported document sees, so it goes through the one
         // helper every other number in these documents already uses.
         val dateStr = BidiEngine.toPersianDigits(
-            java.text.SimpleDateFormat("yyyy/MM/dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date(session.createdAt))
+            java.text.SimpleDateFormat("yyyy/MM/dd HH:mm", java.util.Locale.US).format(java.util.Date(session.createdAt))
         )
 
         return when (type) {

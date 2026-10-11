@@ -14,12 +14,16 @@ import com.example.data.remote.gemini.measureLocalConversation
 import com.example.data.remote.gemini.servedModelOf
 import com.example.domain.bidi.BidiEngine
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
@@ -479,5 +483,79 @@ class LocalDistillationTest {
         assertTrue(doc.contains("فقط سیب رسیده را برداشت کن"))
         assertTrue(doc.contains("سیب نرسیده روی درخت بماند"))
         assertFalse(doc.contains("رعایت اصول"))
+    }
+
+    /**
+     * The frozen instant the session of the test below carries. The date that test expects is rebuilt
+     * from this same value, so the zone of the machine running the suite cancels out and what is pinned
+     * is the fixture instant, never the wall clock.
+     */
+    private val fixtureCreatedAt = 1760056200000L
+
+    /**
+     * Handset locales that are supposed to write their own digits. Which digits each one really writes
+     * is the locale data of the JVM running the suite, not something this file can decide, so the legs
+     * are tried together and each one reports whether it could tell the two code paths apart.
+     */
+    private val handsetLocaleTags = listOf("fa-IR", "ar-EG", "ar-SA", "hi-IN", "bn-BD", "my-MM")
+
+    /**
+     * The date of an offline report is built by `BidiEngine.toPersianDigits`, which converts the latin
+     * digits and passes every other digit class through untouched. Fed by the handset's own locale the
+     * formatter hands that helper digits the user's digit switch has no power over, and they are then
+     * stored in the report and printed in every document made from it. Pinning `Locale.US` keeps the
+     * intermediate string latin, so the helper is the only thing that decides how the date looks.
+     *
+     * Deliberate break that reddens this: put `java.util.Locale.getDefault()` back at
+     * `GeminiClient.kt:350`. Then on every leg whose locale writes its own digits the report comes back
+     * with those digits instead of the converted date, and the Arabic-Indic legs additionally fail the
+     * second assertion. On a JVM whose locale data is latin for all of these tags nothing here can tell
+     * the two code paths apart, which is why the last line skips instead of passing silently.
+     */
+    @Test
+    fun offlineDistillationDateNeverComesFromTheHandsetLocale() {
+        val fixture = styled.copy(id = "local-summary-handset-locale", createdAt = fixtureCreatedAt)
+        val expectedDate = BidiEngine.toPersianDigits(
+            SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.US).format(Date(fixtureCreatedAt))
+        )
+        val handset = Locale.getDefault()
+        var legsWritingTheirOwnDigits = 0
+        try {
+            GeminiClient.apiKeyOverrideForTests = ""
+            for (tag in handsetLocaleTags) {
+                val locale = Locale.forLanguageTag(tag)
+                val localeDate = SimpleDateFormat("yyyy/MM/dd HH:mm", locale).format(Date(fixtureCreatedAt))
+                val helperMissesItsDigits =
+                    localeDate.any { Character.isDigit(it) && it !in '0'..'9' } &&
+                            BidiEngine.toPersianDigits(localeDate) != expectedDate
+
+                Locale.setDefault(locale)
+                val report = runBlocking {
+                    GeminiClient.distillSession(fixture, DistillationType.EXECUTIVE_SUMMARY).getOrThrow()
+                }
+
+                assertTrue(
+                    "the $tag leg lost the converted date <$expectedDate>:\n$report",
+                    report.contains(expectedDate)
+                )
+                val arabicIndicLine = report.lines().firstOrNull { line ->
+                    line.any { it in '\u0660'..'\u0669' }
+                }
+                assertTrue(
+                    "the $tag leg left the handset's Arabic-Indic digits in the stored date: <$arabicIndicLine>",
+                    arabicIndicLine == null
+                )
+                if (helperMissesItsDigits) legsWritingTheirOwnDigits++
+            }
+        } finally {
+            Locale.setDefault(handset)
+            GeminiClient.apiKeyOverrideForTests = null
+            GeminiClient.lastUsedModel = null
+        }
+        assumeTrue(
+            "no locale of this JVM formats <$fixtureCreatedAt> with digits the helper misses, so no leg " +
+                    "here could tell the two code paths apart",
+            legsWritingTheirOwnDigits > 0
+        )
     }
 }
