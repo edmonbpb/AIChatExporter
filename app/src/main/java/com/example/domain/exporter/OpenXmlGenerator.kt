@@ -471,9 +471,9 @@ object OpenXmlGenerator {
 </p:sld>"""
 
     /**
-     * The summary, every conversation turn and every code block, each split over as many slides as it
-     * needs. Nothing is clipped any more: the old deck stopped at a 600-character summary head and a
-     * 500-character code head, and it always stopped at three slides.
+     * The summary (only when the deck was asked for one), every conversation turn and every code block, each
+     * split over as many slides as it needs. Nothing is clipped any more: the old deck stopped at a
+     * 600-character summary head and a 500-character code head, and it always stopped at three slides.
      */
     private fun buildPptxSlideParts(
         session: ChatSession,
@@ -485,7 +485,7 @@ object OpenXmlGenerator {
         val shown = persianDigitFormatter(options)
         val slides = mutableListOf<String>()
         slides += buildPptxTitleSlideXml(title, session.platform.displayName, session.modelName, dateStr)
-        slides += buildPptxSummarySlidesXml(session, distillationContent, shown)
+        if (options.includeExecutiveSummary) slides += buildPptxSummarySlidesXml(session, distillationContent, shown)
         if (pptxIncludesTurns(options)) slides += buildPptxTurnSlidesXml(session, shown)
         if (options.includeCodeBlocks) slides += buildPptxCodeSlidesXml(session)
         return slides
@@ -504,7 +504,7 @@ object OpenXmlGenerator {
     ): Int {
         val shown = persianDigitFormatter(options)
         var count = 1 // the title slide, which every deck carries
-        count += pptxSummaryChunks(session, distillationContent, shown).size
+        if (options.includeExecutiveSummary) count += pptxSummaryChunks(session, distillationContent, shown).size
         if (pptxIncludesTurns(options)) count += pptxTurnChunkCounts(session).sum()
         if (options.includeCodeBlocks) count += pptxCodeSlideCount(session)
         return count

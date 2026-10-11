@@ -386,10 +386,21 @@ class ExampleUnitTest {
         slideNamesOf(parts).filter { parts.getValue(it).contains("Consolas") }
 
     /**
+     * The first words of the summary slide's heading, as code points, because the writers on this machine
+     * corrupt literal Persian. Same twelve characters the generator puts on that heading.
+     */
+    private val summaryHeadingText = "\u062E\u0644\u0627\u0635\u0647 \u0627\u062C\u0631\u0627\u06CC\u06CC"
+
+    /** Every `<a:t>` of every slide, so a heading can be searched for without knowing which slide holds it. */
+    private fun allSlideTextsOf(parts: Map<String, String>): List<String> =
+        slideNamesOf(parts).flatMap { slideTextsOf(parts, it) }
+
+    /**
      * The number the screen shows before the button is pressed and the number of slide parts really inside
      * the written package must be one number. Every shape goes through `generateRealPptx`: a short
      * conversation, one long enough to split turns and code and summary over many slides, one whose code
-     * section falls back to its placeholder slide, and both new switches.
+     * section falls back to its placeholder slide, and both new switches. Two shapes switch the summary off,
+     * one of them down to the title-only deck, because a gate the estimate does not know about is a lie.
      */
     @Test
     fun theSlideEstimateEqualsTheDeckThatGetsWritten() {
@@ -399,7 +410,15 @@ class ExampleUnitTest {
             Triple(40, longCode, longSummary) to ExportOptions(),
             Triple(2, "", "decision notes") to ExportOptions(),
             Triple(8, longCode, longSummary) to ExportOptions(pptxSummaryAndCodeOnly = true),
-            Triple(8, longCode, longSummary) to ExportOptions(includeCodeBlocks = false)
+            Triple(8, longCode, longSummary) to ExportOptions(includeCodeBlocks = false),
+            Triple(8, longCode, longSummary) to ExportOptions(includeExecutiveSummary = false),
+            Triple(
+                2, "", "decision notes"
+            ) to ExportOptions(
+                includeExecutiveSummary = false,
+                pptxSummaryAndCodeOnly = true,
+                includeCodeBlocks = false
+            )
         ).forEach { (shape, options) ->
             val (turns, code, summary) = shape
             val written = slideNamesOf(
@@ -444,6 +463,15 @@ class ExampleUnitTest {
         assertFalse(ExportOptions().pptxSummaryAndCodeOnly)
         val parts = pptxPartsOf(turns = 6, code = longCode, distillation = "decision notes")
         assertEquals("every one of the six turns needs its own slide", 6, turnSlidesOf(parts).size)
+        assertTrue(
+            "the summary switch is on by default, so the default deck must still carry a summary",
+            ExportOptions().includeExecutiveSummary
+        )
+        assertTrue("the default deck lost its summary slide", summarySlidesOf(parts).isNotEmpty())
+        assertTrue(
+            "the default deck lost the summary heading",
+            allSlideTextsOf(parts).any { it.contains(summaryHeadingText) }
+        )
 
         val texts = slideNamesOf(parts).flatMap { slideTextsOf(parts, it) }
         (1..6).forEach { index ->
@@ -456,6 +484,102 @@ class ExampleUnitTest {
             "the default estimate is the full deck",
             slideNamesOf(parts).size,
             OpenXmlGenerator.estimatePptxSlideCount(exportFixture(6, longCode), "decision notes", ExportOptions())
+        )
+    }
+
+    /**
+     * The deck honoured every section switch but this one, so a user who turned the summary off still got a
+     * summary slide. Both shapes of the section are checked: the distillation text, and the fallback the
+     * builder writes when there is no distillation, which is a slide of turn and word counts.
+     */
+    @Test
+    fun turningTheSummarySwitchOffTakesEverySummarySlideOutOfTheDeck() {
+        val summaryOff = ExportOptions(includeExecutiveSummary = false)
+        listOf("decision notes" to "distilled text", null to "no distillation").forEach { (distillation, label) ->
+            val on = pptxPartsOf(turns = 4, code = "val x = 10", distillation = distillation)
+            val off = pptxPartsOf(
+                turns = 4, code = "val x = 10", distillation = distillation, options = summaryOff
+            )
+
+            assertTrue(
+                "$label: the summary-on deck must carry the heading",
+                allSlideTextsOf(on).any { it.contains(summaryHeadingText) }
+            )
+            assertTrue("$label: the summary-on deck must hold the section", summarySlidesOf(on).isNotEmpty())
+            assertFalse("$label: a summary heading survived the switch being off", allSlideTextsOf(off).any { it.contains(summaryHeadingText) })
+            assertEquals("$label: no slide of the summary section may remain", 0, summarySlidesOf(off).size)
+            assertEquals(
+                "$label: only the summary slides may go away",
+                summarySlidesOf(on).size,
+                slideNamesOf(on).size - slideNamesOf(off).size
+            )
+            assertEquals(
+                "$label: the estimate must follow the switch too",
+                slideNamesOf(off).size,
+                OpenXmlGenerator.estimatePptxSlideCount(exportFixture(4, "val x = 10"), distillation, summaryOff)
+            )
+        }
+    }
+
+    /**
+     * Decision on the empty deck, written down: with the summary, the turns and the code all off, the deck is
+     * the title slide alone and that is what ships. The title slide carries the session title, the platform,
+     * the model and the date, so it is the conversation's own content rather than an invented filler, and the
+     * estimate says one because one is what is written. A placeholder slide would hand back exactly what the
+     * user excluded, which is the defect this round fixes.
+     */
+    @Test
+    fun everyPptxSectionSwitchedOffLeavesOneValidTitleOnlyDeck() {
+        val options = ExportOptions(
+            includeExecutiveSummary = false,
+            pptxSummaryAndCodeOnly = true,
+            includeCodeBlocks = false
+        )
+        val parts = pptxPartsOf(turns = 6, code = longCode, distillation = "decision notes", options = options)
+
+        assertEquals("the deck must be the title slide alone", listOf("ppt/slides/slide1.xml"), slideNamesOf(parts))
+        assertTrue(summarySlidesOf(parts).isEmpty())
+        assertTrue(turnSlidesOf(parts).isEmpty())
+        assertTrue(codeSlidesOf(parts).isEmpty())
+        assertEquals(
+            "the estimate must promise the one slide that is written",
+            1,
+            OpenXmlGenerator.estimatePptxSlideCount(exportFixture(6, longCode), "decision notes", options)
+        )
+
+        // A one-slide deck still has to be a readable package: the slide is registered and reachable.
+        assertEquals(
+            setOf(
+                "[Content_Types].xml",
+                "_rels/.rels",
+                "ppt/_rels/presentation.xml.rels",
+                "ppt/presentation.xml",
+                "ppt/slides/slide1.xml"
+            ),
+            parts.keys
+        )
+        val overrides = elementsOf(
+            parsePart("[Content_Types].xml", parts.getValue("[Content_Types].xml")),
+            contentTypesNs,
+            "Override"
+        ).map { it.getAttribute("PartName") }.filter { it.startsWith("/ppt/slides/") }
+        assertEquals(listOf("/ppt/slides/slide1.xml"), overrides)
+        val presRels = parsePart(
+            "ppt/_rels/presentation.xml.rels",
+            parts.getValue("ppt/_rels/presentation.xml.rels")
+        )
+        assertEquals(
+            listOf("slides/slide1.xml"),
+            elementsOf(presRels, relationshipsNs, "Relationship").map { it.getAttribute("Target") }
+        )
+        assertEquals(
+            "the presentation must name the one slide it holds",
+            1,
+            elementsOf(parsePart("ppt/presentation.xml", parts.getValue("ppt/presentation.xml")), presentationmlNs, "sldId").size
+        )
+        assertTrue(
+            "the surviving slide is the title slide, carrying the model the conversation had",
+            slideTextsOf(parts, "ppt/slides/slide1.xml").any { it.contains("DeepSeek-R1") }
         )
     }
 
