@@ -371,6 +371,94 @@ class ExampleUnitTest {
     private fun slideTextsOf(parts: Map<String, String>, slideName: String): List<String> =
         elementsOf(parsePart(slideName, parts.getValue(slideName)), drawingmlNs, "t").map { it.textContent }
 
+    // --- which slides the deck carries, and what the screen may promise about them ---
+
+    // The body text size is the only thing each section type asks for, so it tells the sections apart
+    // without the test having to type the Persian heading it renders. Title 4000, summary 1800, turn 1600.
+    private fun turnSlidesOf(parts: Map<String, String>): List<String> =
+        slideNamesOf(parts).filter { parts.getValue(it).contains("sz=\"1600\"") }
+
+    private fun summarySlidesOf(parts: Map<String, String>): List<String> =
+        slideNamesOf(parts).filter { parts.getValue(it).contains("sz=\"1800\"") }
+
+    /** The code slides are the only ones that ask for the monospace face, as the older test already says. */
+    private fun codeSlidesOf(parts: Map<String, String>): List<String> =
+        slideNamesOf(parts).filter { parts.getValue(it).contains("Consolas") }
+
+    /**
+     * The number the screen shows before the button is pressed and the number of slide parts really inside
+     * the written package must be one number. Every shape goes through `generateRealPptx`: a short
+     * conversation, one long enough to split turns and code and summary over many slides, one whose code
+     * section falls back to its placeholder slide, and both new switches.
+     */
+    @Test
+    fun theSlideEstimateEqualsTheDeckThatGetsWritten() {
+        val longSummary = (1..120).joinToString("\n") { "summary line $it" }
+        listOf(
+            Triple(2, "val x = 10", null) to ExportOptions(),
+            Triple(40, longCode, longSummary) to ExportOptions(),
+            Triple(2, "", "decision notes") to ExportOptions(),
+            Triple(8, longCode, longSummary) to ExportOptions(pptxSummaryAndCodeOnly = true),
+            Triple(8, longCode, longSummary) to ExportOptions(includeCodeBlocks = false)
+        ).forEach { (shape, options) ->
+            val (turns, code, summary) = shape
+            val written = slideNamesOf(
+                pptxPartsOf(turns = turns, code = code, distillation = summary, options = options)
+            ).size
+            val estimated = OpenXmlGenerator.estimatePptxSlideCount(exportFixture(turns, code), summary, options)
+            assertEquals(
+                "the estimate must match the written deck ($turns turns, ${code.length} code chars, " +
+                    "${summary?.length} summary chars, options=$options)",
+                written,
+                estimated
+            )
+        }
+    }
+
+    @Test
+    fun theSummaryAndCodeOnlyDeckDropsTheTurnSlidesAndKeepsTheRest() {
+        val options = ExportOptions(pptxSummaryAndCodeOnly = true)
+        val full = pptxPartsOf(turns = 8, code = longCode, distillation = "decision notes")
+        val short = pptxPartsOf(turns = 8, code = longCode, distillation = "decision notes", options = options)
+
+        assertEquals("the full deck must carry one slide for each of the eight turns", 8, turnSlidesOf(full).size)
+        assertEquals("the short deck must carry no turn slide at all", 0, turnSlidesOf(short).size)
+        assertEquals("only the turn slides may go away", turnSlidesOf(full).size, slideNamesOf(full).size - slideNamesOf(short).size)
+        assertTrue("the short deck must still carry the summary", summarySlidesOf(short).isNotEmpty())
+        assertEquals(summarySlidesOf(full).size, summarySlidesOf(short).size)
+        assertTrue("the short deck must still carry the code", codeSlidesOf(short).isNotEmpty())
+        assertEquals(codeSlidesOf(full).size, codeSlidesOf(short).size)
+        assertEquals(
+            "the estimate must follow the switch, not the default deck",
+            slideNamesOf(short).size,
+            OpenXmlGenerator.estimatePptxSlideCount(exportFixture(8, longCode), "decision notes", options)
+        )
+    }
+
+    /**
+     * The witness that nothing is dropped quietly: with the options struct at its defaults the deck still
+     * carries every turn and every line of code, exactly as it did before any shorter form existed.
+     */
+    @Test
+    fun theDefaultOptionsStillWriteEveryTurnAndEveryCodeLine() {
+        assertFalse(ExportOptions().pptxSummaryAndCodeOnly)
+        val parts = pptxPartsOf(turns = 6, code = longCode, distillation = "decision notes")
+        assertEquals("every one of the six turns needs its own slide", 6, turnSlidesOf(parts).size)
+
+        val texts = slideNamesOf(parts).flatMap { slideTextsOf(parts, it) }
+        (1..6).forEach { index ->
+            assertTrue("turn $index is missing from the default deck", texts.any { it.contains("part-$index") })
+        }
+        longCode.lines().filter { it.isNotBlank() }.forEach { line ->
+            assertTrue("code line missing from the default deck: $line", line in texts)
+        }
+        assertEquals(
+            "the default estimate is the full deck",
+            slideNamesOf(parts).size,
+            OpenXmlGenerator.estimatePptxSlideCount(exportFixture(6, longCode), "decision notes", ExportOptions())
+        )
+    }
+
     // --- the date inside the deliverable follows the digit switch ---
 
     /** The same frozen instant the token tests use, so the two switch positions are compared on one date. */

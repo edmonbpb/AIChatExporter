@@ -27,6 +27,7 @@ import com.example.data.remote.gemini.GeminiClient
 import com.example.domain.bidi.BidiEngine
 import com.example.domain.exporter.DocumentExporter
 import com.example.domain.exporter.ExportOptions
+import com.example.domain.exporter.OpenXmlGenerator
 import com.example.domain.parser.TranscriptIngestionEngine
 import com.example.domain.parser.partialImportNotice
 import com.example.domain.parser.scrubInventedModel
@@ -39,6 +40,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -64,6 +66,7 @@ data class ExportUiState(
     val includeSummary: Boolean = true,
     val includeCode: Boolean = true,
     val convertPersianDigits: Boolean = true,
+    val pptxSummaryAndCodeOnly: Boolean = false,
     val customTitle: String = "",
     val lastExportedRecord: ExportRecord? = null,
     val errorMessage: String? = null
@@ -75,6 +78,7 @@ data class ExportUiState(
         includeExecutiveSummary = includeSummary,
         includeCodeBlocks = includeCode,
         convertToPersianDigits = convertPersianDigits,
+        pptxSummaryAndCodeOnly = pptxSummaryAndCodeOnly,
         // Decided here, not left null for the exporter to patch: one route to the printed title.
         customTitle = customTitle.takeIf { it.isNotBlank() } ?: sessionTitle
     )
@@ -144,6 +148,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // Export State
     private val _exportState = MutableStateFlow(ExportUiState())
     val exportState: StateFlow<ExportUiState> = _exportState.asStateFlow()
+
+    /**
+     * How many slides the presentation export would write for the session and the switches as they stand,
+     * counted by the generator's own chunking before any file is made. Zero when there is nothing to export.
+     */
+    val pptxSlideEstimate: StateFlow<Int> = combine(
+        _activeSession,
+        _exportState,
+        _distillationState
+    ) { session, exportState, distillationState ->
+        val current = session
+        if (current == null || current.messages.isEmpty()) 0
+        else OpenXmlGenerator.estimatePptxSlideCount(
+            current,
+            distillationState.currentResult,
+            exportState.toExportOptions(current.title)
+        )
+    }.stateIn(viewModelScope, SharingStarted.Lazily, 0)
 
     // Status Message / SnackBar
     private val _userMessage = MutableStateFlow<String?>(null)
@@ -941,6 +963,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         includeSummary: Boolean? = null,
         includeCode: Boolean? = null,
         convertPersianDigits: Boolean? = null,
+        pptxSummaryAndCodeOnly: Boolean? = null,
         customTitle: String? = null
     ) {
         _exportState.value = _exportState.value.copy(
@@ -948,6 +971,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             includeSummary = includeSummary ?: _exportState.value.includeSummary,
             includeCode = includeCode ?: _exportState.value.includeCode,
             convertPersianDigits = convertPersianDigits ?: _exportState.value.convertPersianDigits,
+            pptxSummaryAndCodeOnly = pptxSummaryAndCodeOnly ?: _exportState.value.pptxSummaryAndCodeOnly,
             customTitle = customTitle ?: _exportState.value.customTitle
         )
     }

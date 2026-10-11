@@ -26,6 +26,9 @@ data class ExportOptions(
     val includeExecutiveSummary: Boolean = true,
     val includeCodeBlocks: Boolean = true,
     val convertToPersianDigits: Boolean = true,
+    // PPTX only, and false by default: turning it on leaves the per-turn slides out of the deck, so the
+    // whole conversation stays in it unless the user asks for the shorter one. No ceiling, nothing clipped.
+    val pptxSummaryAndCodeOnly: Boolean = false,
     val customTitle: String? = null
 )
 

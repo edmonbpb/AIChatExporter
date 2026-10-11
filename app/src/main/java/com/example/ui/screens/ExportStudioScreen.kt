@@ -76,6 +76,7 @@ fun ExportStudioScreen(
     // The on-screen digit preference, not the document option `exportState.convertPersianDigits`;
     // this is the flag LibraryScreen's `ExportRecordCard` and WorkspaceScreen honour for the same values.
     val usePersianDigits by viewModel.usePersianDigits.collectAsState()
+    val slideEstimate by viewModel.pptxSlideEstimate.collectAsState()
     val context = LocalContext.current
     val scrollState = rememberScrollState()
 
@@ -287,6 +288,13 @@ fun ExportStudioScreen(
                     onCheckedChange = { viewModel.updateExportOptions(convertPersianDigits = it) },
                     testTag = "toggle_persian_digits"
                 )
+
+                OptionToggleRow(
+                    label = PPTX_SCOPE_TOGGLE_LABEL,
+                    checked = exportState.pptxSummaryAndCodeOnly,
+                    onCheckedChange = { viewModel.updateExportOptions(pptxSummaryAndCodeOnly = it) },
+                    testTag = "toggle_pptx_scope"
+                )
             }
         }
 
@@ -385,6 +393,20 @@ fun ExportStudioScreen(
         }
 
         Spacer(modifier = Modifier.height(16.dp))
+
+        // The deck has no slide ceiling, so the count is shown before the button is pressed instead of
+        // being capped afterwards. Digits follow the on-screen preference, as the size line below does.
+        if (exportState.selectedFormat == ExportFormat.PPTX && slideEstimate > 0) {
+            Text(
+                text = PPTX_SLIDE_ESTIMATE_LABEL +
+                    if (usePersianDigits) BidiEngine.toPersianDigits(slideEstimate.toString()) else slideEstimate.toString(),
+                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("pptx_slide_estimate")
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+        }
 
         // Main Export Trigger Button
         Button(
@@ -608,6 +630,12 @@ fun OptionToggleRow(
 
 /** A handful of lines is a preview; the whole document is not, and this card is not a file reader. */
 private const val LIVE_PREVIEW_LINES = 12
+
+/** The short deck, offered beside the whole conversation and never forced on it. */
+private const val PPTX_SCOPE_TOGGLE_LABEL = "فقط خلاصه و کدها در فایل ارائه (بدون اسلاید گفتگو)"
+
+/** The count shown before the export is pressed, so a long conversation is a known cost, not a surprise. */
+private const val PPTX_SLIDE_ESTIMATE_LABEL = "تعداد تخمینی اسلاید: "
 
 /** The words the export-success card already uses to name a file, reused so both cards say it once. */
 private const val FILE_NAME_LABEL = "📁 نام فایل: "

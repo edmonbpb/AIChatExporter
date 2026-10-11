@@ -486,15 +486,65 @@ object OpenXmlGenerator {
         val slides = mutableListOf<String>()
         slides += buildPptxTitleSlideXml(title, session.platform.displayName, session.modelName, dateStr)
         slides += buildPptxSummarySlidesXml(session, distillationContent, shown)
-        slides += buildPptxTurnSlidesXml(session, shown)
+        if (pptxIncludesTurns(options)) slides += buildPptxTurnSlidesXml(session, shown)
         if (options.includeCodeBlocks) slides += buildPptxCodeSlidesXml(session)
         return slides
     }
+
+    /**
+     * The deck's slide count without writing a byte of it: the same `slideChunks` calls the section builders
+     * make, summed over the same section gates [buildPptxSlideParts] uses. The screen shows this before the
+     * export is pressed, so it must not grow a copy of the arithmetic — a drift here would be a promise the
+     * export breaks.
+     */
+    fun estimatePptxSlideCount(
+        session: ChatSession,
+        distillationContent: String?,
+        options: ExportOptions
+    ): Int {
+        val shown = persianDigitFormatter(options)
+        var count = 1 // the title slide, which every deck carries
+        count += pptxSummaryChunks(session, distillationContent, shown).size
+        if (pptxIncludesTurns(options)) count += pptxTurnChunkCounts(session).sum()
+        if (options.includeCodeBlocks) count += pptxCodeSlideCount(session)
+        return count
+    }
+
+    /** Turns get no slide of their own when the deck was asked for the short form. */
+    private fun pptxIncludesTurns(options: ExportOptions): Boolean = !options.pptxSummaryAndCodeOnly
+
+    /** Body text split against the body budgets; the turns and the summary both come through here. */
+    private fun bodyChunks(text: String): List<List<String>> =
+        slideChunks(text, PPTX_BODY_MAX_CHARS, PPTX_BODY_MAX_LINES)
+
+    private fun codeChunks(text: String): List<List<String>> =
+        slideChunks(text, PPTX_CODE_MAX_CHARS, PPTX_CODE_MAX_LINES)
+
+    /** Body chunks per conversation turn, in turn order — the builder needs the split, the estimate the size. */
+    private fun pptxTurnChunkCounts(session: ChatSession): List<Int> =
+        session.messages.map { bodyChunks(it.content).size }
+
+    /** A conversation with nothing extracted still gets one slide saying so, counted and built in one place. */
+    private fun pptxCodeSlideCount(session: ChatSession): Int {
+        val slideCounts = pptxCodeBlockSlideCounts(session)
+        return if (slideCounts.isEmpty()) 1 else slideCounts.sum()
+    }
+
+    private fun pptxCodeBlockSlideCounts(session: ChatSession): List<Int> =
+        session.messages.flatMap { message -> message.codeSnippets }.map { codeChunks(it.code).size }
 
     /** Counts spoken of to a Persian reader use Persian digits; never applied to chat or code text. */
     private fun persianDigitFormatter(options: ExportOptions): (Int) -> String = { value ->
         if (options.convertToPersianDigits) BidiEngine.toPersianDigits(value.toString()) else value.toString()
     }
+
+    /** The summary the deck opens with: the distillation text, or the turn/word counts when there is none. */
+    private fun pptxSummaryText(session: ChatSession, distillation: String?, shown: (Int) -> String): String =
+        distillation?.takeIf { it.isNotBlank() }
+            ?: "تعداد کل پیام‌ها: ${shown(session.messages.size)} • کلمات: ${shown(session.totalWords)}"
+
+    private fun pptxSummaryChunks(session: ChatSession, distillation: String?, shown: (Int) -> String): List<List<String>> =
+        bodyChunks(pptxSummaryText(session, distillation, shown))
 
     private fun buildPptxSummarySlidesXml(
         session: ChatSession,
@@ -502,9 +552,7 @@ object OpenXmlGenerator {
         shown: (Int) -> String
     ): List<String> {
         val heading = "📊 خلاصه اجرایی و نکات کلیدی"
-        val summaryText = distillation?.takeIf { it.isNotBlank() }
-            ?: "تعداد کل پیام‌ها: ${shown(session.messages.size)} • کلمات: ${shown(session.totalWords)}"
-        return slideChunks(summaryText, PPTX_BODY_MAX_CHARS, PPTX_BODY_MAX_LINES).mapIndexed { index, lines ->
+        return pptxSummaryChunks(session, distillation, shown).mapIndexed { index, lines ->
             buildPptxTextSlideXml(
                 heading = if (index == 0) heading else "$PPTX_CONTINUATION_PREFIX$heading",
                 headingColor = "6366F1",
@@ -523,7 +571,7 @@ object OpenXmlGenerator {
             val isUser = msg.role == MessageRole.USER
             val turnLabel = if (isUser) "👤 پرسش کاربر" else "🤖 پاسخ هوش مصنوعی (${msg.modelTag ?: session.modelName})"
             val heading = "نوبت #${shown(index + 1)} — $turnLabel"
-            slideChunks(msg.content, PPTX_BODY_MAX_CHARS, PPTX_BODY_MAX_LINES).forEachIndexed { part, lines ->
+            bodyChunks(msg.content).forEachIndexed { part, lines ->
                 slides += buildPptxTextSlideXml(
                     heading = if (part == 0) heading else "$PPTX_CONTINUATION_PREFIX$heading",
                     headingColor = if (isUser) "15803D" else "4338CA",
@@ -558,7 +606,7 @@ object OpenXmlGenerator {
         snippets.forEach { snippet ->
             // The language rides in the slide heading so the body stays a byte-for-byte copy of the code.
             val slideHeading = if (snippet.language.isBlank()) heading else "$heading — ${snippet.language}"
-            slideChunks(snippet.code, PPTX_CODE_MAX_CHARS, PPTX_CODE_MAX_LINES).forEachIndexed { part, lines ->
+            codeChunks(snippet.code).forEachIndexed { part, lines ->
                 slides += buildPptxTextSlideXml(
                     heading = if (part == 0) slideHeading else "$PPTX_CONTINUATION_PREFIX$slideHeading",
                     headingColor = "10B981",

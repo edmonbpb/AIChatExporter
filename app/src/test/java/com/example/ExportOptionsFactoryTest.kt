@@ -52,6 +52,7 @@ class ExportOptionsFactoryTest {
             includeSummary = false,
             includeCode = false,
             convertPersianDigits = false,
+            pptxSummaryAndCodeOnly = false,
             customTitle = "Typed Title"
         )
         val expected = mapOf<String, Any?>(
@@ -60,6 +61,7 @@ class ExportOptionsFactoryTest {
             "includeExecutiveSummary" to false,
             "includeCodeBlocks" to false,
             "convertToPersianDigits" to false,
+            "pptxSummaryAndCodeOnly" to false,
             "customTitle" to "Typed Title"
         )
         val produced = state.toExportOptions("Session Title")
@@ -82,6 +84,8 @@ class ExportOptionsFactoryTest {
         assertTrue(produced.includeExecutiveSummary)
         assertTrue(produced.includeCodeBlocks)
         assertTrue(produced.convertToPersianDigits)
+        // The fifth switch is the one that is off on its own: an untouched struct means the whole conversation.
+        assertFalse(produced.pptxSummaryAndCodeOnly)
         assertEquals("Typed Title", produced.customTitle)
     }
 
@@ -114,10 +118,25 @@ class ExportOptionsFactoryTest {
         assertEquals(listOf("includeCodeBlocks").toString(), changed.toString())
     }
 
+    @Test
+    fun flippingTheScopeSwitchChangesExactlyThatOption() {
+        val state = ExportUiState(customTitle = "Typed Title")
+        val before = state.toExportOptions("Session Title")
+        val after = state.copy(pptxSummaryAndCodeOnly = true).toExportOptions("Session Title")
+
+        assertFalse(valueOf(before, "pptxSummaryAndCodeOnly") as Boolean)
+        assertTrue(valueOf(after, "pptxSummaryAndCodeOnly") as Boolean)
+        assertNotEquals(before, after)
+
+        val changed = optionFieldNames().filter { valueOf(before, it) != valueOf(after, it) }
+        assertEquals(listOf("pptxSummaryAndCodeOnly").toString(), changed.toString())
+    }
+
     /**
-     * Every other state in this file gives all four switches the same value at once, so a factory line that
-     * reads its neighbour's switch prints the same answer and passes. These two states alternate instead, and
+     * Every other state in this file gives all the switches the same value at once, so a factory line that
+     * reads its neighbour's switch prints the same answer and passes. These states alternate instead, and
      * between them every pair of switches differs in at least one of them, so no pair can be swapped quietly.
+     * Five switches need three states, not two: four booleans already use up the four two-state patterns.
      */
     @Test
     fun everySwitchCarriesItsOwnValueNotANeighbours() {
@@ -128,6 +147,7 @@ class ExportOptionsFactoryTest {
                 includeSummary = false,
                 includeCode = true,
                 convertPersianDigits = false,
+                pptxSummaryAndCodeOnly = true,
                 customTitle = "Typed Title"
             ),
             ExportUiState(
@@ -136,6 +156,16 @@ class ExportOptionsFactoryTest {
                 includeSummary = false,
                 includeCode = true,
                 convertPersianDigits = true,
+                pptxSummaryAndCodeOnly = false,
+                customTitle = "Typed Title"
+            ),
+            ExportUiState(
+                selectedFormat = ExportFormat.MARKDOWN,
+                includeMetadata = true,
+                includeSummary = true,
+                includeCode = false,
+                convertPersianDigits = true,
+                pptxSummaryAndCodeOnly = false,
                 customTitle = "Typed Title"
             )
         ).forEach { state ->
@@ -146,6 +176,7 @@ class ExportOptionsFactoryTest {
             assertEquals("includeExecutiveSummary must come from includeSummary", state.includeSummary, produced.includeExecutiveSummary)
             assertEquals("includeCodeBlocks must come from includeCode", state.includeCode, produced.includeCodeBlocks)
             assertEquals("convertToPersianDigits must come from convertPersianDigits", state.convertPersianDigits, produced.convertToPersianDigits)
+            assertEquals("pptxSummaryAndCodeOnly must come from pptxSummaryAndCodeOnly", state.pptxSummaryAndCodeOnly, produced.pptxSummaryAndCodeOnly)
             assertEquals("customTitle must come from customTitle", state.customTitle, produced.customTitle)
         }
     }
