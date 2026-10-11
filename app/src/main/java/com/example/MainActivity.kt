@@ -22,12 +22,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalTextToolbar
 import androidx.compose.ui.platform.TextToolbar
 import androidx.compose.ui.platform.TextToolbarStatus
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.unit.LayoutDirection
 import com.example.ui.components.AppBottomNavBar
 import com.example.ui.components.AppScreen
@@ -58,6 +61,7 @@ class MainActivity : ComponentActivity() {
 
     private val viewModel: MainViewModel by viewModels()
 
+    @OptIn(ExperimentalComposeUiApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -80,11 +84,21 @@ class MainActivity : ComponentActivity() {
                     LocalLayoutDirection provides LayoutDirection.Rtl,
                     LocalTextToolbar provides NoOpTextToolbar
                 ) {
-                    Crossfade(targetState = userProfile != null, label = "auth_crossfade") { isAuthenticated ->
-                        if (isAuthenticated) {
-                            MainAppScreen(viewModel = viewModel)
-                        } else {
-                            AuthScreen(viewModel = viewModel)
+                    // One flag, set at the top of the view tree: the accessibility delegate looks for it
+                    // by walking up the semantics chain from the node it is filling in, so every testTag
+                    // below (export_error_card, toggle_pptx_scope, pptx_slide_estimate, ...) also reaches
+                    // a UI Automator or Espresso dump as a resource name. Nothing on screen changes.
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .semantics { testTagsAsResourceId = true }
+                    ) {
+                        Crossfade(targetState = userProfile != null, label = "auth_crossfade") { isAuthenticated ->
+                            if (isAuthenticated) {
+                                MainAppScreen(viewModel = viewModel)
+                            } else {
+                                AuthScreen(viewModel = viewModel)
+                            }
                         }
                     }
                 }
