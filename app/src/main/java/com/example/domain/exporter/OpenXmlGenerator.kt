@@ -38,7 +38,9 @@ object OpenXmlGenerator {
         options: ExportOptions
     ) {
         val title = options.customTitle ?: session.title
-        val dateStr = SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault()).format(Date(session.createdAt))
+        // Locale.US keeps the intermediate string ASCII; the digits the reader sees belong to the switch, not to the handset.
+        val rawDateStr = SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.US).format(Date(session.createdAt))
+        val dateStr = if (options.convertToPersianDigits) BidiEngine.toPersianDigits(rawDateStr) else rawDateStr
 
         ZipOutputStream(FileOutputStream(file)).use { zos ->
             // 1. [Content_Types].xml
@@ -72,7 +74,8 @@ object OpenXmlGenerator {
         options: ExportOptions
     ) {
         val title = options.customTitle ?: session.title
-        val dateStr = SimpleDateFormat("yyyy/MM/dd", Locale.getDefault()).format(Date(session.createdAt))
+        val rawDateStr = SimpleDateFormat("yyyy/MM/dd", Locale.US).format(Date(session.createdAt))
+        val dateStr = if (options.convertToPersianDigits) BidiEngine.toPersianDigits(rawDateStr) else rawDateStr
         val slides = buildPptxSlideParts(session, distillationContent, title, dateStr, options)
 
         ZipOutputStream(FileOutputStream(file)).use { zos ->

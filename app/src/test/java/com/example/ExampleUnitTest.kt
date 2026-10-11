@@ -26,6 +26,9 @@ import org.xml.sax.InputSource
 import org.xml.sax.SAXException
 import java.io.File
 import java.io.StringReader
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.UUID
 import java.util.zip.ZipFile
 import javax.xml.XMLConstants
@@ -275,11 +278,12 @@ class ExampleUnitTest {
         if (index == 30) "if (n < 10 && n > 0) render(\"<b>\" + $index)" else "val value$index = compute($index)"
     }
 
-    private fun exportFixture(turns: Int, code: String): ChatSession = ChatSession(
+    private fun exportFixture(turns: Int, code: String, createdAt: Long = System.currentTimeMillis()): ChatSession = ChatSession(
         id = "ooxml-fixture-session",
         title = "جلسه معماری سیستم",
         platform = PlatformPreset.DEEPSEEK,
         modelName = "DeepSeek-R1",
+        createdAt = createdAt,
         messages = (1..turns).map { index ->
             ChatMessage(
                 role = if (index % 2 == 1) MessageRole.USER else MessageRole.ASSISTANT,
@@ -331,20 +335,32 @@ class ExampleUnitTest {
     private fun slideNamesOf(parts: Map<String, String>): List<String> =
         parts.keys.filter { it.startsWith("ppt/slides/slide") && it.endsWith(".xml") }.sorted()
 
-    private fun pptxPartsOf(turns: Int, code: String, distillation: String?): Map<String, String> {
+    private fun pptxPartsOf(
+        turns: Int,
+        code: String,
+        distillation: String?,
+        options: ExportOptions = ExportOptions(),
+        createdAt: Long = System.currentTimeMillis()
+    ): Map<String, String> {
         val file = File.createTempFile("ooxml_pptx_", ".pptx")
         try {
-            OpenXmlGenerator.generateRealPptx(file, exportFixture(turns, code), distillation, ExportOptions())
+            OpenXmlGenerator.generateRealPptx(file, exportFixture(turns, code, createdAt), distillation, options)
             return zipPartsOf(file)
         } finally {
             file.delete()
         }
     }
 
-    private fun docxPartsOf(turns: Int, code: String, distillation: String?): Map<String, String> {
+    private fun docxPartsOf(
+        turns: Int,
+        code: String,
+        distillation: String?,
+        options: ExportOptions = ExportOptions(),
+        createdAt: Long = System.currentTimeMillis()
+    ): Map<String, String> {
         val file = File.createTempFile("ooxml_docx_", ".docx")
         try {
-            OpenXmlGenerator.generateRealDocx(file, exportFixture(turns, code), distillation, ExportOptions())
+            OpenXmlGenerator.generateRealDocx(file, exportFixture(turns, code, createdAt), distillation, options)
             return zipPartsOf(file)
         } finally {
             file.delete()
@@ -354,6 +370,123 @@ class ExampleUnitTest {
     /** Every `<a:t>` of a slide, in document order. The first one is the slide heading. */
     private fun slideTextsOf(parts: Map<String, String>, slideName: String): List<String> =
         elementsOf(parsePart(slideName, parts.getValue(slideName)), drawingmlNs, "t").map { it.textContent }
+
+    // --- the date inside the deliverable follows the digit switch ---
+
+    /** The same frozen instant the token tests use, so the two switch positions are compared on one date. */
+    private val fixtureCreatedAtMillis = nowSeconds * 1000
+
+    /** Persian digits as code points, because literal Persian text is corrupted by the writers on this machine. */
+    private val persianDigitRange = '\u06F0'..'\u06F9'
+
+    /**
+     * The date is the tail of its run, so matching on its character class finds it without asking the
+     * test to type the Persian label that precedes it.
+     */
+    private fun dateTailOf(text: String): String {
+        val run = text.takeLastWhile {
+            it in '0'..'9' || it in persianDigitRange || it == '-' || it == '/' || it == ':' || it == ' '
+        }
+        assertTrue(
+            "the date must be a tail of a longer run, not the whole run: <$text>",
+            run.isNotEmpty() && run.length < text.length
+        )
+        // The walk back swallows the label's ": ", so the date itself starts at its first digit.
+        return run.dropWhile { it !in '0'..'9' && it !in persianDigitRange }
+    }
+
+    /** The DOCX header run, the only one that opens with the app's own name. */
+    private fun docxDateOf(convertToPersianDigits: Boolean): String {
+        val parts = docxPartsOf(
+            turns = 2,
+            code = "val x = 10",
+            distillation = null,
+            options = ExportOptions(convertToPersianDigits = convertToPersianDigits),
+            createdAt = fixtureCreatedAtMillis
+        )
+        return dateTailOf(
+            elementsOf(parsePart("word/document.xml", parts.getValue("word/document.xml")), wordmlNs, "t")
+                .map { it.textContent }
+                .single { it.startsWith("AIChatExporter") }
+        )
+    }
+
+    /** The PPTX title slide's meta run, the only one of its runs that separates fields with a pipe. */
+    private fun pptxDateOf(convertToPersianDigits: Boolean): String {
+        val parts = pptxPartsOf(
+            turns = 2,
+            code = "val x = 10",
+            distillation = null,
+            options = ExportOptions(convertToPersianDigits = convertToPersianDigits),
+            createdAt = fixtureCreatedAtMillis
+        )
+        return dateTailOf(slideTextsOf(parts, "ppt/slides/slide1.xml").single { it.contains('|') })
+    }
+
+    @Test
+    fun docxDateIsPersianWhileTheDigitSwitchIsOn() {
+        val on = docxDateOf(convertToPersianDigits = true)
+        val off = docxDateOf(convertToPersianDigits = false)
+        assertEquals("the DOCX header date still carries a Latin digit: <$on>", 0, on.count { it in '0'..'9' })
+        assertEquals("the DOCX header date must carry twelve Persian digits: <$on>", 12, on.count { it in persianDigitRange })
+        assertEquals("only the digits may move, never the shape of the date", BidiEngine.toPersianDigits(off), on)
+    }
+
+    @Test
+    fun docxDateStaysLatinWhenTheDigitSwitchIsOff() {
+        val off = docxDateOf(convertToPersianDigits = false)
+        assertEquals("an off switch must leave the twelve Latin digits alone: <$off>", 12, off.count { it in '0'..'9' })
+        assertEquals("an off switch must not smuggle a Persian digit in: <$off>", 0, off.count { it in persianDigitRange })
+        // Formatted here with the generator's own default zone, so the pin is the fixture instant, never the wall clock.
+        assertEquals(
+            "the DOCX header date must be the frozen fixture instant: <$off>",
+            SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.US).format(Date(fixtureCreatedAtMillis)),
+            off
+        )
+        assertTrue("the DOCX header date lost its pattern: <$off>", Regex("""\d{4}/\d{2}/\d{2} \d{2}:\d{2}""").matches(off))
+    }
+
+    @Test
+    fun pptxDateIsPersianWhileTheDigitSwitchIsOn() {
+        val on = pptxDateOf(convertToPersianDigits = true)
+        val off = pptxDateOf(convertToPersianDigits = false)
+        assertEquals("the title-slide date still carries a Latin digit: <$on>", 0, on.count { it in '0'..'9' })
+        assertEquals("the title-slide date must carry eight Persian digits: <$on>", 8, on.count { it in persianDigitRange })
+        assertEquals("only the digits may move, never the shape of the date", BidiEngine.toPersianDigits(off), on)
+    }
+
+    @Test
+    fun pptxDateStaysLatinWhenTheDigitSwitchIsOff() {
+        val off = pptxDateOf(convertToPersianDigits = false)
+        assertEquals("an off switch must leave the eight Latin digits alone: <$off>", 8, off.count { it in '0'..'9' })
+        assertEquals("an off switch must not smuggle a Persian digit in: <$off>", 0, off.count { it in persianDigitRange })
+        // Formatted here with the generator's own default zone, so the pin is the fixture instant, never the wall clock.
+        assertEquals(
+            "the title-slide date must be the frozen fixture instant: <$off>",
+            SimpleDateFormat("yyyy/MM/dd", Locale.US).format(Date(fixtureCreatedAtMillis)),
+            off
+        )
+        assertTrue("the title-slide date lost its pattern: <$off>", Regex("""\d{4}/\d{2}/\d{2}""").matches(off))
+    }
+
+    @Test
+    fun openXmlDatesComeFromTheSwitchAndNeverFromTheHandsetLocale() {
+        val handset = Locale.getDefault()
+        try {
+            // A handset whose own digits are Persian must not be the thing that decides the digits in a file.
+            Locale.setDefault(Locale.forLanguageTag("fa-IR"))
+            val docxOff = docxDateOf(convertToPersianDigits = false)
+            val docxOn = docxDateOf(convertToPersianDigits = true)
+            val pptxOff = pptxDateOf(convertToPersianDigits = false)
+            val pptxOn = pptxDateOf(convertToPersianDigits = true)
+            assertEquals("the DOCX date must stay Latin with the switch off even on a Persian-digit handset: <$docxOff>", 12, docxOff.count { it in '0'..'9' })
+            assertEquals("the title-slide date must stay Latin with the switch off even on a Persian-digit handset: <$pptxOff>", 8, pptxOff.count { it in '0'..'9' })
+            assertEquals("the DOCX date must be the switch that writes Persian digits: <$docxOn>", 12, docxOn.count { it in persianDigitRange })
+            assertEquals("the title-slide date must be the switch that writes Persian digits: <$pptxOn>", 8, pptxOn.count { it in persianDigitRange })
+        } finally {
+            Locale.setDefault(handset)
+        }
+    }
 
     @Test
     fun everyGeneratedOpenXmlPartIsWellFormedXmlAndThePartSetIsExact() {
