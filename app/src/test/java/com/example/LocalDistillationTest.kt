@@ -23,7 +23,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
-import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
@@ -497,7 +496,15 @@ class LocalDistillationTest {
      * is the locale data of the JVM running the suite, not something this file can decide, so the legs
      * are tried together and each one reports whether it could tell the two code paths apart.
      */
-    private val handsetLocaleTags = listOf("fa-IR", "ar-EG", "ar-SA", "hi-IN", "bn-BD", "my-MM")
+    private fun handsetLocales(): List<Locale> = listOf(
+        Locale.forLanguageTag("fa-IR"),
+        Locale.forLanguageTag("ar-EG"),
+        // Asked for by number-system extension, so it does not depend on how this JVM's locale data
+        // happens to format Arabic: this leg is the one that must always be able to tell the two apart.
+        Locale.Builder().setLanguageTag("ar-EG").setExtension('u', "nu-arab").build(),
+        Locale.forLanguageTag("ar-SA"),
+        Locale.forLanguageTag("hi-IN")
+    )
 
     /**
      * The date of an offline report is built by `BidiEngine.toPersianDigits`, which converts the latin
@@ -510,40 +517,40 @@ class LocalDistillationTest {
      * `GeminiClient.kt:350`. Then on every leg whose locale writes its own digits the report comes back
      * with those digits instead of the converted date, and the Arabic-Indic legs additionally fail the
      * second assertion. On a JVM whose locale data is latin for all of these tags nothing here can tell
-     * the two code paths apart, which is why the last line skips instead of passing silently.
+     * the two code paths apart, which is why the last line fails out loud instead of passing silently.
      */
     @Test
     fun offlineDistillationDateNeverComesFromTheHandsetLocale() {
         val fixture = styled.copy(id = "local-summary-handset-locale", createdAt = fixtureCreatedAt)
-        val expectedDate = BidiEngine.toPersianDigits(
-            SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.US).format(Date(fixtureCreatedAt))
-        )
         val handset = Locale.getDefault()
         var legsWritingTheirOwnDigits = 0
         try {
             GeminiClient.apiKeyOverrideForTests = ""
-            for (tag in handsetLocaleTags) {
-                val locale = Locale.forLanguageTag(tag)
-                val localeDate = SimpleDateFormat("yyyy/MM/dd HH:mm", locale).format(Date(fixtureCreatedAt))
+            for (locale in handsetLocales()) {
+                val tag = locale.toLanguageTag()
+                val plain = SimpleDateFormat("yyyy/MM/dd HH:mm", locale).format(Date(fixtureCreatedAt))
                 val helperMissesItsDigits =
-                    localeDate.any { Character.isDigit(it) && it !in '0'..'9' } &&
-                            BidiEngine.toPersianDigits(localeDate) != expectedDate
+                    plain.any { Character.isDigit(it) && it !in '0'..'9' } &&
+                            BidiEngine.toPersianDigits(plain) != BidiEngine.toPersianDigits(
+                                SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.US).format(Date(fixtureCreatedAt))
+                            )
 
                 Locale.setDefault(locale)
                 val report = runBlocking {
                     GeminiClient.distillSession(fixture, DistillationType.EXECUTIVE_SUMMARY).getOrThrow()
                 }
+                val dateLine = report.lines().first { it.contains("تاریخ گزارش:") }
 
+                // Shape first, and independent of production's own expression: whatever the digits are,
+                // the stored date must still read as year/month/day hour:minute.
+                val latinShaped = dateLine.map { if (it in '\u06f0'..'\u06f9') '0' + (it - '\u06f0') else it }.joinToString("")
                 assertTrue(
-                    "the $tag leg lost the converted date <$expectedDate>:\n$report",
-                    report.contains(expectedDate)
+                    "the $tag leg wrote a date that is not yyyy/MM/dd HH:mm: <$dateLine>",
+                    Regex("[0-9]{4}/[0-9]{2}/[0-9]{2} [0-9]{2}:[0-9]{2}").containsMatchIn(latinShaped)
                 )
-                val arabicIndicLine = report.lines().firstOrNull { line ->
-                    line.any { it in '\u0660'..'\u0669' }
-                }
                 assertTrue(
-                    "the $tag leg left the handset's Arabic-Indic digits in the stored date: <$arabicIndicLine>",
-                    arabicIndicLine == null
+                    "the $tag leg left a digit class the helper cannot convert in the stored date: <$dateLine>",
+                    !dateLine.any { it in '\u0660'..'\u0669' || (Character.isDigit(it) && it !in '0'..'9' && it !in '\u06f0'..'\u06f9') }
                 )
                 if (helperMissesItsDigits) legsWritingTheirOwnDigits++
             }
@@ -552,9 +559,12 @@ class LocalDistillationTest {
             GeminiClient.apiKeyOverrideForTests = null
             GeminiClient.lastUsedModel = null
         }
-        assumeTrue(
-            "no locale of this JVM formats <$fixtureCreatedAt> with digits the helper misses, so no leg " +
-                    "here could tell the two code paths apart",
+        // The `nu-arab` extension below asks for Arabic-Indic digits directly, so a JVM that answers
+        // none of these legs is not a JVM the guard can be trusted on - that is a failure to notice,
+        // not a reason to skip.
+        assertTrue(
+            "no locale of this JVM formatted <$fixtureCreatedAt> with digits the helper misses, so this " +
+                    "guard proved nothing; check -Djava.locale.providers",
             legsWritingTheirOwnDigits > 0
         )
     }
