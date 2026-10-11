@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Monochrome layer of the adaptive launcher icon. Nothing but solid white on full transparency
+  lives here: a launcher paints over this layer with its own tint, so every coloured or themed
+  (?attr/) value would either fight that tint or be flattened to it. The shapes are outlines plus
+  one filled spark, which is what lets the document and the chat bubble stay readable after the
+  whole layer is flattened to a single colour - two overlapping solid fills would merge into one
+  blob. Same motif as ic_launcher_foreground.xml (document + chat bubble + AI spark), recomposed
+  to sit inside the 66dp safe zone that launcher masks cut down to.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:translateX="1"
+        android:translateY="-3">
+        <!-- Document body, chamfered at the top-right for the folded corner -->
+        <path
+            android:pathData="M34,34 L45,34 L52,41 L52,56 C52,58.2 50.2,60 48,60 L34,60 C31.8,60 30,58.2 30,56 L30,38 C30,35.8 31.8,34 34,34 Z"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="4"
+            android:strokeLineJoin="round" />
+        <!-- The fold itself -->
+        <path
+            android:pathData="M45,34 L45,41 L52,41"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="3"
+            android:strokeLineJoin="round"
+            android:strokeLineCap="round" />
+        <!-- Two lines of exported transcript text -->
+        <path
+            android:pathData="M36,48 L46,48 M36,54 L43,54"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="3.5"
+            android:strokeLineCap="round" />
+        <!-- Chat bubble with a tail, clear of the document on both axes -->
+        <path
+            android:pathData="M62,58 L72,58 C74.2,58 76,59.8 76,62 L76,70 C76,72.2 74.2,74 72,74 L68,74 L63,80 L63,74 L62,74 C59.8,74 58,72.2 58,70 L58,62 C58,59.8 59.8,58 62,58 Z"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="4"
+            android:strokeLineJoin="round" />
+        <!-- AI spark, the only filled shape -->
+        <path
+            android:pathData="M67,61 L68.4,64.6 L72,66 L68.4,67.4 L67,71 L65.6,67.4 L62,66 L65.6,64.6 Z"
+            android:fillColor="#FFFFFFFF" />
+    </group>
+</vector>

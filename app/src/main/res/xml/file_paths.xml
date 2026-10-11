@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  The FileProvider serves exactly one root: filesDir/documents, which is where every export and
+  the local backup archive are written (DocumentExporter.kt:41, MainViewModel.kt:374) and where
+  ExportRecord.filePath therefore points. A cache-path and an external-files-path used to be
+  granted here as well; nothing in app/src ever referenced cacheDir, externalCacheDir or
+  getExternalFilesDir, so both grants were dead attack surface and are gone (debug-plan row B-24).
+-->
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
-    <cache-path name="export_cache" path="." />
     <files-path name="export_docs" path="documents/" />
-    <external-files-path name="export_external" path="documents/" />
 </paths>
