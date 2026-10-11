@@ -12,7 +12,7 @@
 | گیت | عددِ اندازه‌گیری‌شده | شاهد |
 |---|---|---|
 | بیلدِ دیباگ | `BUILD SUCCESSFUL in 28m 29s`، ۳۹ تسک، همه executed (بی‌کش) | لاگِ بیلد، `app/build/outputs/apk/debug/app-debug.apk` mtime 03:09 |
-| اثرِ حذفِ وابستگی | APK از ۲۱٬۴۹۸٬۷۷۴ به **۲۰٬۰۷۰٬۶۷۱** بایت (−۱٬۴۲۸٬۱۰۳) | `ls -la app/build/outputs/apk/debug/` |
+| اثرِ حذفِ وابستگی | APK از ۲۱٬۴۹۸٬۷۷۴ به **۲۰٬۰۷۰٬۶۷۱** بایت (-۱٬۴۲۸٬۱۰۳) | `ls -la app/build/outputs/apk/debug/` |
 | تستِ JVM (تازۀ بی‌کش) | **۶۷ تست، ۰ شکست، ۰ خطا** در ۶ کلاس؛ mtime همه ۰۳:۱۷:۰۸ | `app/build/test-results/testDebugUnitTest/*.xml` |
 | نام presence (نه مقایسۀ فهرست) | `defaultModel` در `app/src`: **۰** تطبیق (پیش از کار: ۷ تعریف+فراخوان) | `grep -rn "defaultModel" app/src` |
 | نام presence | `applyBiDiIsolation` / `toStandardDigits` / `generateWordDocx` / `generatePresentation` در `app/src`: **۰** | `grep -rn …` |

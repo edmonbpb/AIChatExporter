@@ -11,7 +11,7 @@ The Gemini key was found verbatim in three archived UI dumps taken off the Setti
 |---|---|
 | old key revoked in AI Studio | `GET /v1beta/models` with the old key returns **401**; with the new key **200** |
 | new key in place | `.env` `GEMINI_API_KEY` matches the live key (53 chars, `AQ.` prefix); `GOOGLE_CLIENT_ID` untouched |
-| three dumps redacted | `docs/reports/raw/ui-settings-05-up.xml`, `ui-settings-06-keycards.xml`, `plan10-P4-settings-after-swipes.xml` — one hit each, byte delta −32 each (`[REDACTED-GEMINI-KEY]` is 21 chars vs 53) |
+| three dumps redacted | `docs/reports/raw/ui-settings-05-up.xml`, `ui-settings-06-keycards.xml`, `plan10-P4-settings-after-swipes.xml` — one hit each, byte delta -32 each (`[REDACTED-GEMINI-KEY]` is 21 chars vs 53) |
 | repo sweep | 374 files scanned, **0** still containing the old key |
 
 The key never passed through the chat or any report: it travelled browser → a localhost receiver →
