@@ -9,6 +9,7 @@ import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.GetCredentialException
+import androidx.credentials.exceptions.NoCredentialException
 import com.example.BuildConfig
 import com.example.data.model.UserProfile
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
@@ -68,6 +69,10 @@ object GoogleAuthManager {
             }
         } catch (e: GetCredentialCancellationException) {
             GoogleSignInOutcome.Cancelled
+        } catch (e: NoCredentialException) {
+            // No Google account on the device is a normal state, not a fault: it must not read as
+            // the same failure as a provider error.
+            GoogleSignInOutcome.Failed("حساب گوگلِ واردشده‌ای روی این دستگاه پیدا نشد. می‌توانید به‌صورت مهمان ادامه دهید.")
         } catch (e: GetCredentialException) {
             GoogleSignInOutcome.Failed(e.message ?: "ارائه‌دهندهٔ اعتبارنامه پاسخی بازنگرداند.")
         } catch (e: CancellationException) {
