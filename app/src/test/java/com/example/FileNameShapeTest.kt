@@ -1,5 +1,6 @@
 package com.example
 
+import com.example.data.model.ExportFormat
 import com.example.domain.exporter.DocumentExporter
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -62,5 +63,27 @@ class FileNameShapeTest {
         val other = DocumentExporter.middleEllipsize(pdfName, cardBudget)
 
         assertNotEquals(shown, other)
+    }
+
+    /**
+     * The ellipsis keeps the last 20 characters, which is exactly `yyyyMMdd_HHmmss` plus "." plus the
+     * longest extension this app writes. Nothing else in the codebase promises that, so a format with a
+     * longer extension would silently clip the timestamp on the card instead of failing here.
+     */
+    @Test
+    fun everyFormatTheAppCanWriteKeepsItsTimestampInsideTheTail() {
+        ExportFormat.entries.forEach { format ->
+            val name = "AIChat_Any_Session_Title_20261012_051425.${format.extension}"
+            val shown = DocumentExporter.middleEllipsize(name, cardBudget)
+
+            assertTrue(
+                "${format.extension} lost its extension on the card: $shown",
+                shown.endsWith(".${format.extension}")
+            )
+            assertTrue(
+                "${format.extension} lost its timestamp on the card: $shown",
+                shown.contains("20261012_051425")
+            )
+        }
     }
 }
