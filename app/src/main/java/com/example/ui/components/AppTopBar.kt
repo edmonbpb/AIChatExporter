@@ -73,19 +73,21 @@ fun AppTopBar(
                 Spacer(modifier = Modifier.width(10.dp))
 
                 Column {
+                    Text(
+                        text = "AIChatExporter",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    // The badge shares the second line with the session name instead of sitting beside
+                    // the brand: on a 1080-wide phone the four action icons already take half the bar,
+                    // and a badge next to the title was what made the name itself truncate.
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "AIChatExporter",
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            ),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
                         Box(
                             modifier = Modifier
                                 .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(4.dp))
@@ -100,18 +102,19 @@ fun AppTopBar(
                                 )
                             )
                         }
-                    }
-
-                    if (activeSession != null && activeSession.messages.isNotEmpty()) {
-                        Text(
-                            text = "${activeSession.platform.iconEmoji} ${activeSession.title}",
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            ),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        if (activeSession != null && activeSession.messages.isNotEmpty()) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "${activeSession.platform.iconEmoji} ${activeSession.title}",
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
+                            )
+                        }
                     }
                 }
             }
