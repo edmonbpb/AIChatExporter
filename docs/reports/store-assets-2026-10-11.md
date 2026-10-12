@@ -49,7 +49,7 @@
 | `03-distillation-modes.png` | 1080x1920 | 63e702e8288453a4 |
 | `04-export-studio.png` | 1080x1920 | 832a74c8fc4bb488 |
 | `05-export-success.png` | 1080x1920 | 892e5451b3da0745 |
-| `06-library-records.png` | 1080x1920 | 2886313a1f776465 |
+| `06-library-records.png` | 1080x1920 | f25f5736583185c6 |
 | `feature-graphic-1024x500.png` | 1024x500 | d2dd78725425bc3b |
 | `icon-512.png` | 512x512 | 410cba594a2b09a5 |
 

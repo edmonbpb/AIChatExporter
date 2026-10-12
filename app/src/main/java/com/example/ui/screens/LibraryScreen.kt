@@ -62,6 +62,7 @@ import com.example.data.model.ExportFormat
 import com.example.data.model.ExportRecord
 import com.example.data.model.PlatformPreset
 import com.example.domain.bidi.BidiEngine
+import com.example.domain.exporter.DocumentExporter.middleEllipsize
 import com.example.domain.exporter.FileShareHelper
 import com.example.domain.parser.scrubInventedModel
 import com.example.ui.components.AdaptiveLabel
@@ -330,15 +331,15 @@ fun ExportRecordCard(
                     Text(text = record.format.iconEmoji, fontSize = 16.sp)
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = record.fileName,
+                        text = middleEllipsize(record.fileName, 24),
                         style = MaterialTheme.typography.bodySmall.copy(
                             fontWeight = FontWeight.SemiBold,
                             fontFamily = FontFamily.Monospace
                         ),
                         maxLines = 1,
-                        // Ellipsis instead of the default Clip: a mid-glyph cut made two names that
-                        // differ only at the end read as identical. MiddleEllipsis would be the better
-                        // cue (keeps the extension), but it needs ui-text 1.10+; this app resolves 1.7.0.
+                        // Head-ellipsized to the ~24 monospace characters this box fits, so the timestamp and
+                        // extension survive at the tail. Ellipsis stays as the outer guard: at a large font
+                        // scale even the shortened name overflows, and losing tail characters beats a wrapped card.
                         overflow = TextOverflow.Ellipsis
                     )
                 }

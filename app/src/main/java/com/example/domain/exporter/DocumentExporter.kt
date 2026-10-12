@@ -632,6 +632,21 @@ object DocumentExporter {
         }
     }
 
+    /**
+     * Middle ellipsis done by hand on the string, for the library card's name line. The part that tells two
+     * exports apart is the tail - the timestamp and the extension - and Compose's `TextOverflow.Ellipsis`
+     * cuts exactly that off; the real fix is `MiddleEllipsis`, which needs ui-text 1.10 while this app
+     * resolves 1.7.0. `budget` is how many characters the box fits; names written here keep their extension
+     * inside the last 20 characters, which is why the tail is cut at that size.
+     */
+    internal fun middleEllipsize(name: String, budget: Int): String {
+        if (name.length <= budget) return name
+        // Under 8 there is room for neither the cue nor a readable tail, so the head is shown as is.
+        if (budget < 8) return name.take(budget)
+        if (budget <= 21) return "…" + name.takeLast(budget - 1)
+        return name.take(budget - 21) + "…" + name.takeLast(20)
+    }
+
     private const val HTML_STYLE = """
 :root { color-scheme: light dark; }
 body { font-family: "Vazirmatn", "Segoe UI", Tahoma, sans-serif; margin: 0; padding: 24px; background: #f8fafc; color: #0f172a; line-height: 1.85; }
