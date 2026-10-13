@@ -25,7 +25,7 @@ class FileNameShapeTest {
     private val pdfName = "AIChat_Synthetic_Digits_Check_20261012_051331.pdf"
 
     /** The card's name box at 1080x1920 fits about this many monospace characters at bodySmall. */
-    private val cardBudget = 24
+    private val cardBudget = DocumentExporter.CARD_NAME_BUDGET
 
     @Test
     fun ellipsizedAtCardWidthTheTailStillSurvives() {

@@ -632,6 +632,9 @@ object DocumentExporter {
         }
     }
 
+    // The library card's name box at 1080x1920 fits about this many monospace characters at bodySmall.
+    internal const val CARD_NAME_BUDGET = 24
+
     /**
      * Middle ellipsis done by hand on the string, for the library card's name line. The part that tells two
      * exports apart is the tail - the timestamp and the extension - and Compose's `TextOverflow.Ellipsis`

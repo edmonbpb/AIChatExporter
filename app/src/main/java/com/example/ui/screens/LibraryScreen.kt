@@ -62,6 +62,7 @@ import com.example.data.model.ExportFormat
 import com.example.data.model.ExportRecord
 import com.example.data.model.PlatformPreset
 import com.example.domain.bidi.BidiEngine
+import com.example.domain.exporter.DocumentExporter.CARD_NAME_BUDGET
 import com.example.domain.exporter.DocumentExporter.middleEllipsize
 import com.example.domain.exporter.FileShareHelper
 import com.example.domain.parser.scrubInventedModel
@@ -331,15 +332,15 @@ fun ExportRecordCard(
                     Text(text = record.format.iconEmoji, fontSize = 16.sp)
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = middleEllipsize(record.fileName, 24),
+                        text = middleEllipsize(record.fileName, CARD_NAME_BUDGET),
                         style = MaterialTheme.typography.bodySmall.copy(
                             fontWeight = FontWeight.SemiBold,
                             fontFamily = FontFamily.Monospace
                         ),
                         maxLines = 1,
-                        // Head-ellipsized to the ~24 monospace characters this box fits, so the timestamp and
-                        // extension survive at the tail. Ellipsis stays as the outer guard: at a large font
-                        // scale even the shortened name overflows, and losing tail characters beats a wrapped card.
+                        // Head-ellipsized to the box's monospace width, the budget in CARD_NAME_BUDGET, so the
+                        // timestamp and extension survive at the tail. Ellipsis stays as the outer guard: at a
+                        // large font scale even the shortened name overflows, and losing tail beats wrapping.
                         overflow = TextOverflow.Ellipsis
                     )
                 }
