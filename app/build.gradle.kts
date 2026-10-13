@@ -15,7 +15,10 @@ val publicBuild = (findProperty("publicBuild") as? String)?.toBoolean() == true
 // Measured 2026-10-11: the secrets plugin mutates a list the configuration cache does not
 // fingerprint, so a cached entry stored by a -PpublicBuild run was reused by an ordinary debug
 // build and silently dropped BuildConfig.GEMINI_API_KEY (compileDebugKotlin: unresolved reference).
-// The flag is only trustworthy on a cache-free configuration.
+// Measured again 2026-10-13: a cache-free configuration is NOT enough on its own - a live daemon
+// keeps the mutated ignoreList too, so the next keyed release build fails with the same unresolved
+// reference. Both vectors have to be closed: ./gradlew --stop AND --no-configuration-cache. The
+// symptom of a leftover state is a Kotlin "unresolved reference", not a message about the key.
 if (publicBuild && gradle.startParameter.isConfigurationCacheRequested) {
   throw GradleException(
     "-PpublicBuild=true must be combined with --no-configuration-cache, otherwise the stripped " +
