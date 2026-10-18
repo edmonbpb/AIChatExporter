@@ -2,7 +2,9 @@ package com.example.domain.exporter
 
 import com.example.data.model.ChatSession
 import com.example.data.model.MessageRole
+import com.example.domain.bidi.AlignSide
 import com.example.domain.bidi.BidiEngine
+import com.example.domain.bidi.paragraphSide
 import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
@@ -26,6 +28,25 @@ object OpenXmlGenerator {
 
     /** Marks a slide that carries the rest of a chunk that did not fit on the previous one. */
     private const val PPTX_CONTINUATION_PREFIX = "ادامهٔ "
+
+    // --- one side decision, asked of paragraphSide, reused by both writers ---
+
+    /** Direct `bidi` property; omitting it inherits the style's `true`, so the left form must say 0. */
+    private fun docxBidiTag(side: AlignSide): String =
+        if (side == AlignSide.RIGHT) "<w:bidi/>" else "<w:bidi w:val=\"0\"/>"
+
+    private fun docxJcTag(side: AlignSide): String =
+        if (side == AlignSide.RIGHT) "<w:jc w:val=\"right\"/>" else "<w:jc w:val=\"left\"/>"
+
+    /** The accent bar hangs off the side the paragraph sits on, so it moves with it. */
+    private fun docxAccentSide(side: AlignSide): String = if (side == AlignSide.RIGHT) "right" else "left"
+
+    /** The whole `bidi`+`jc` pair, for the paragraphs that carry neither `pStyle` nor borders. */
+    private fun docxCellPPr(side: AlignSide): String =
+        "<w:pPr>${docxBidiTag(side)} ${docxJcTag(side)}</w:pPr>"
+
+    /** Text that arrives with no stored direction of its own is judged on the words it carries. */
+    private fun sideOfText(text: String): AlignSide = paragraphSide(BidiEngine.detectDirection(text), text)
 
     /**
      * Generates a genuine Microsoft Word (.docx) OpenXML document with native RTL,
@@ -275,6 +296,13 @@ object OpenXmlGenerator {
             val tokensStr = if (options.convertToPersianDigits) BidiEngine.toPersianDigits(session.tokenEstimate.toString()) else session.tokenEstimate.toString()
             val msgsStr = if (options.convertToPersianDigits) BidiEngine.toPersianDigits(session.messages.size.toString()) else session.messages.size.toString()
 
+            // A value cell holds bare values: a model id like `gpt-4o` is left, the Persian counts right.
+            val modelSide = sideOfText(session.modelName)
+            val msgsCellText = "$msgsStr نوبت"
+            val msgsSide = sideOfText(msgsCellText)
+            val wordsCellText = "$wordsStr کلمه (~$tokensStr توکن)"
+            val wordsSide = sideOfText(wordsCellText)
+
             appendLine("""
     <w:tbl>
       <w:tblPr>
@@ -298,15 +326,15 @@ object OpenXmlGenerator {
       </w:tr>
       <w:tr>
         <w:tc><w:p><w:r><w:t>مدل هوش مصنوعی:</w:t></w:r></w:p></w:tc>
-        <w:tc><w:p><w:r><w:rPr><w:b/></w:rPr><w:t>${escapeXml(session.modelName)}</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p>${docxCellPPr(modelSide)}<w:r><w:rPr><w:b/></w:rPr><w:t>${escapeXml(session.modelName)}</w:t></w:r></w:p></w:tc>
       </w:tr>
       <w:tr>
         <w:tc><w:p><w:r><w:t>تعداد پیام‌ها:</w:t></w:r></w:p></w:tc>
-        <w:tc><w:p><w:r><w:t>$msgsStr نوبت</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p>${docxCellPPr(msgsSide)}<w:r><w:t>${escapeXml(msgsCellText)}</w:t></w:r></w:p></w:tc>
       </w:tr>
       <w:tr>
         <w:tc><w:p><w:r><w:t>حجم کلمات و توکن:</w:t></w:r></w:p></w:tc>
-        <w:tc><w:p><w:r><w:t>$wordsStr کلمه (~$tokensStr توکن)</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p>${docxCellPPr(wordsSide)}<w:r><w:t>${escapeXml(wordsCellText)}</w:t></w:r></w:p></w:tc>
       </w:tr>
     </w:tbl>
     <w:p><w:spacing w:after="200"/></w:p>""")
@@ -323,12 +351,15 @@ object OpenXmlGenerator {
     </w:p>""")
 
             distillationContent.lines().forEach { line ->
+                val side = sideOfText(line)
                 appendLine("""
     <w:p>
       <w:pPr>
         <w:pStyle w:val="Body"/>
-        <w:pBdr><w:right w:val="single" w:sz="24" w:space="8" w:color="EAB308"/></w:pBdr>
+        <w:pBdr><w:${docxAccentSide(side)} w:val="single" w:sz="24" w:space="8" w:color="EAB308"/></w:pBdr>
         <w:shd w:val="clear" w:color="auto" w:fill="FEFCE8"/>
+        ${docxBidiTag(side)}
+        ${docxJcTag(side)}
       </w:pPr>
       <w:r><w:t>${escapeXml(line)}</w:t></w:r>
     </w:p>""")
@@ -350,25 +381,33 @@ object OpenXmlGenerator {
             val borderColor = if (isUser) "22C55E" else "6366F1"
             val fillColor = if (isUser) "F0FDF4" else "F8FAFC"
             val numStr = if (options.convertToPersianDigits) BidiEngine.toPersianDigits((idx + 1).toString()) else (idx + 1).toString()
+            val headingText = "نوبت #$numStr — $turnLabel"
+            // The label is Persian by construction, so this asks the engine and gets RIGHT back.
+            val headingSide = sideOfText(headingText)
 
             appendLine("""
     <w:p>
       <w:pPr>
         <w:pStyle w:val="Heading2"/>
-        <w:pBdr><w:right w:val="single" w:sz="24" w:space="8" w:color="$borderColor"/></w:pBdr>
+        <w:pBdr><w:${docxAccentSide(headingSide)} w:val="single" w:sz="24" w:space="8" w:color="$borderColor"/></w:pBdr>
         <w:shd w:val="clear" w:color="auto" w:fill="$fillColor"/>
+        ${docxBidiTag(headingSide)}
         <w:spacing w:before="160" w:after="80"/>
+        ${docxJcTag(headingSide)}
       </w:pPr>
-      <w:r><w:rPr><w:color w:val="${if (isUser) "15803D" else "4338CA"}"/></w:rPr><w:t>نوبت #$numStr — $turnLabel</w:t></w:r>
+      <w:r><w:rPr><w:color w:val="${if (isUser) "15803D" else "4338CA"}"/></w:rPr><w:t>${escapeXml(headingText)}</w:t></w:r>
     </w:p>""")
 
             msg.content.lines().forEach { line ->
+                val side = paragraphSide(msg.direction, line)
                 appendLine("""
     <w:p>
       <w:pPr>
         <w:pStyle w:val="Body"/>
-        <w:pBdr><w:right w:val="single" w:sz="12" w:space="8" w:color="$borderColor"/></w:pBdr>
+        <w:pBdr><w:${docxAccentSide(side)} w:val="single" w:sz="12" w:space="8" w:color="$borderColor"/></w:pBdr>
         <w:shd w:val="clear" w:color="auto" w:fill="$fillColor"/>
+        ${docxBidiTag(side)}
+        ${docxJcTag(side)}
       </w:pPr>
       <w:r><w:t>${escapeXml(line)}</w:t></w:r>
     </w:p>""")
@@ -669,9 +708,12 @@ object OpenXmlGenerator {
         monospace: Boolean,
         rtl: Boolean
     ): String {
-        val rtlFlag = if (rtl) "1" else "0"
-        val align = if (rtl) "r" else "l"
-        val bodyLang = if (monospace) "en-US" else "fa-IR"
+        // The heading carries the slide-level fallback; each body line then decides for itself,
+        // because one turn can mix a Persian line and an English line inside a single slide.
+        val headingSide = if (monospace) AlignSide.LEFT else sideOfText(heading)
+        val headingRtlFlag = if (headingSide == AlignSide.RIGHT) "1" else "0"
+        val headingAlign = if (headingSide == AlignSide.RIGHT) "r" else "l"
+        val bodyRtlCol = if (rtl) "1" else "0"
         // In CT_TextCharacterProperties `a:latin` follows the fill, so the faces are appended after solidFill.
         val faces = if (monospace) "<a:latin typeface=\"Consolas\"/><a:cs typeface=\"Consolas\"/>" else ""
         val body = buildString {
@@ -679,7 +721,11 @@ object OpenXmlGenerator {
                 if (line.isBlank()) {
                     appendLine("          <a:p/>")
                 } else {
-                    appendLine("""          <a:p><a:pPr algn="$align" rtl="$rtlFlag"/><a:r><a:rPr lang="$bodyLang" sz="$fontSize"><a:solidFill><a:srgbClr val="$textColor"/></a:solidFill>$faces</a:rPr><a:t xml:space="preserve">${escapeXml(line)}</a:t></a:r></a:p>""")
+                    val side = if (monospace) AlignSide.LEFT else sideOfText(line)
+                    val rtlFlag = if (side == AlignSide.RIGHT) "1" else "0"
+                    val align = if (side == AlignSide.RIGHT) "r" else "l"
+                    val lang = if (side == AlignSide.RIGHT) "fa-IR" else "en-US"
+                    appendLine("""          <a:p><a:pPr algn="$align" rtl="$rtlFlag"/><a:r><a:rPr lang="$lang" sz="$fontSize"><a:solidFill><a:srgbClr val="$textColor"/></a:solidFill>$faces</a:rPr><a:t xml:space="preserve">${escapeXml(line)}</a:t></a:r></a:p>""")
                 }
             }
         }
@@ -693,15 +739,15 @@ object OpenXmlGenerator {
         <p:nvSpPr><p:cNvPr id="2" name="Heading"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr/></p:nvSpPr>
         <p:spPr><a:xfrm><a:off x="600000" y="430000"/><a:ext cx="7944000" cy="900000"/></a:xfrm></p:spPr>
         <p:txBody>
-          <a:bodyPr rtlCol="$rtlFlag"/><a:lstStyle/>
-          <a:p><a:pPr algn="$align" rtl="$rtlFlag"/><a:r><a:rPr lang="fa-IR" sz="2600" b="1"><a:solidFill><a:srgbClr val="$headingColor"/></a:solidFill></a:rPr><a:t>${escapeXml(heading)}</a:t></a:r></a:p>
+          <a:bodyPr rtlCol="$headingRtlFlag"/><a:lstStyle/>
+          <a:p><a:pPr algn="$headingAlign" rtl="$headingRtlFlag"/><a:r><a:rPr lang="fa-IR" sz="2600" b="1"><a:solidFill><a:srgbClr val="$headingColor"/></a:solidFill></a:rPr><a:t>${escapeXml(heading)}</a:t></a:r></a:p>
         </p:txBody>
       </p:sp>
       <p:sp>
         <p:nvSpPr><p:cNvPr id="3" name="Body"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr/></p:nvSpPr>
         <p:spPr><a:xfrm><a:off x="600000" y="1430000"/><a:ext cx="7944000" cy="3200000"/></a:xfrm></p:spPr>
         <p:txBody>
-          <a:bodyPr rtlCol="$rtlFlag"/><a:lstStyle/>
+          <a:bodyPr rtlCol="$bodyRtlCol"/><a:lstStyle/>
 $body        </p:txBody>
       </p:sp>
     </p:spTree>
