@@ -106,8 +106,12 @@ class ExampleUnitTest {
     @Test
     fun htmlParagraphsWrapEachLineAndEscapeIt() {
         assertEquals(
-            "<p>first &lt;b&gt;bold&lt;/b&gt;</p>\n<p>second line</p>",
-            DocumentExporter.htmlParagraphs("first <b>bold</b>\n\nsecond line")
+            "<p dir=\"ltr\">first &lt;b&gt;bold&lt;/b&gt;</p>\n<p dir=\"ltr\">second line</p>",
+            DocumentExporter.htmlParagraphs("first <b>bold</b>\n\nsecond line", TextDirection.LTR)
+        )
+        assertEquals(
+            "<p dir=\"rtl\">یک سطر فارسی</p>",
+            DocumentExporter.htmlParagraphs("یک سطر فارسی", TextDirection.RTL)
         )
     }
 

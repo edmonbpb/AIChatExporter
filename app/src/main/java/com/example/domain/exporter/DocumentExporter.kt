@@ -10,7 +10,10 @@ import com.example.data.model.ChatSession
 import com.example.data.model.ExportFormat
 import com.example.data.model.ExportRecord
 import com.example.data.model.MessageRole
+import com.example.data.model.TextDirection
+import com.example.domain.bidi.AlignSide
 import com.example.domain.bidi.BidiEngine
+import com.example.domain.bidi.paragraphSide
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -477,7 +480,7 @@ object DocumentExporter {
             if (!distillationContent.isNullOrBlank()) {
                 appendLine("<section class=\"summary\">")
                 appendLine("<h2>📊 پالایش هوشمند و خلاصه</h2>")
-                appendLine(htmlParagraphs(distillationContent))
+                appendLine(htmlParagraphs(distillationContent, BidiEngine.detectDirection(distillationContent)))
                 appendLine("</section>")
             }
 
@@ -490,7 +493,7 @@ object DocumentExporter {
                 if (!msg.reasoning.isNullOrBlank()) {
                     appendLine("<details><summary>🧠 تفکر و استدلال مدل</summary><pre>${escapeHtml(msg.reasoning)}</pre></details>")
                 }
-                appendLine(htmlParagraphs(msg.content))
+                appendLine(htmlParagraphs(msg.content, msg.direction))
                 if (options.includeCodeBlocks) {
                     msg.codeSnippets.forEach { snippet ->
                         appendLine("<figure dir=\"ltr\">")
@@ -508,10 +511,13 @@ object DocumentExporter {
         }
     }
 
-    internal fun htmlParagraphs(text: String): String =
+    internal fun htmlParagraphs(text: String, direction: TextDirection): String =
         text.lineSequence()
             .filter { it.isNotBlank() }
-            .joinToString("\n") { "<p>${escapeHtml(it.trim())}</p>" }
+            .joinToString("\n") { line ->
+                val dir = if (paragraphSide(direction, line) == AlignSide.RIGHT) "rtl" else "ltr"
+                "<p dir=\"$dir\">${escapeHtml(line.trim())}</p>"
+            }
 
     internal fun escapeHtml(value: String): String = value
         .replace("&", "&amp;")
@@ -602,6 +608,7 @@ object DocumentExporter {
                 val msgObj = JSONObject().apply {
                     put("id", msg.id)
                     put("role", msg.role.name.lowercase())
+                    put("direction", msg.direction.name.lowercase())
                     put("content", msg.content)
                     put("timestamp", msg.timestamp)
                     msg.modelTag?.let { put("modelTag", it) }
