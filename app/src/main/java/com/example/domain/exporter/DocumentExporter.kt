@@ -6,6 +6,10 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
+import android.text.Layout
+import android.text.StaticLayout
+import android.text.TextDirectionHeuristics
+import android.text.TextPaint
 import com.example.data.model.ChatSession
 import com.example.data.model.ExportFormat
 import com.example.data.model.ExportRecord
@@ -170,18 +174,18 @@ object DocumentExporter {
         var canvas = page.canvas
         var yPos = margin + 20f
 
-        val titlePaint = Paint().apply {
+        val titlePaint = TextPaint().apply {
             color = Color.rgb(30, 27, 75)
             textSize = 18f
             isFakeBoldText = true
             isAntiAlias = true
         }
-        val subPaint = Paint().apply {
+        val subPaint = TextPaint().apply {
             color = Color.rgb(99, 102, 241)
             textSize = 10f
             isAntiAlias = true
         }
-        val bodyPaint = Paint().apply {
+        val bodyPaint = TextPaint().apply {
             color = Color.rgb(30, 41, 59)
             textSize = 10f
             isAntiAlias = true
@@ -211,16 +215,49 @@ object DocumentExporter {
         // preview shows for this format.
         val headerLines = pdfHeaderLines(session, options)
 
-        fun drawHeader() {
-            // Draw Header Banner
-            val headerRect = RectF(margin, yPos, pageWidth - margin, yPos + 60f)
-            canvas.drawRoundRect(headerRect, 8f, 8f, headerCardPaint)
 
-            canvas.drawText(headerLines[0], margin + 14f, yPos + 26f, titlePaint)
-            canvas.drawText(headerLines[1], margin + 14f, yPos + 46f, subPaint)
-            yPos += 75f
+        /** Text with no stored direction of its own is judged on the words it carries. */
+        fun sideOf(text: String): AlignSide = paragraphSide(BidiEngine.detectDirection(text), text)
+
+        /**
+         * One laid-out block for a paragraph. ALIGN_NORMAL puts the block against the side its own
+         * direction names, so Persian lands on the right and English on the left, and the order of the
+         * words inside a mixed line is the platform's own bidi, not a guess made in this file.
+         */
+        fun layoutOf(text: String, paint: TextPaint, width: Float, side: AlignSide): StaticLayout =
+            StaticLayout.Builder.obtain(text, 0, text.length, paint, width.toInt().coerceAtLeast(1))
+                .setAlignment(Layout.Alignment.ALIGN_NORMAL)
+                .setTextDirection(
+                    if (side == AlignSide.RIGHT) TextDirectionHeuristics.RTL else TextDirectionHeuristics.LTR
+                )
+                .build()
+
+        /** Draws a block at the given left edge and moves the cursor past it. */
+        fun drawBlock(layout: StaticLayout, left: Float) {
+            canvas.save()
+            canvas.translate(left, yPos)
+            layout.draw(canvas)
+            canvas.restore()
+            yPos += layout.height.toFloat()
         }
 
+        /** A block that has to fit on the page it starts on: the banner, the headings, the turn label. */
+        fun drawLine(text: String, paint: TextPaint, left: Float, width: Float, side: AlignSide, gap: Float) {
+            if (text.isBlank()) return
+            drawBlock(layoutOf(text, paint, width, side), left)
+            yPos += gap
+        }
+
+        fun drawHeader() {
+            // Draw Header Banner
+            val bannerTop = yPos
+            val headerRect = RectF(margin, bannerTop, pageWidth - margin, bannerTop + 60f)
+            canvas.drawRoundRect(headerRect, 8f, 8f, headerCardPaint)
+            val inner = pageWidth - 2 * margin - 28f
+            drawLine(headerLines[0], titlePaint, margin + 14f, inner, sideOf(headerLines[0]), 2f)
+            drawLine(headerLines[1], subPaint, margin + 14f, inner, sideOf(headerLines[1]), 0f)
+            yPos = bannerTop + 75f
+        }
         fun checkNewPage(neededHeight: Float) {
             if (yPos + neededHeight > pageHeight - margin - 25f) {
                 // Footer page number
@@ -239,6 +276,45 @@ object DocumentExporter {
                 yPos = margin + 20f
                 drawHeader()
             }
+        }
+
+        /**
+         * One source line as a paragraph, wrapped to the column and split across pages when the line
+         * runs past the room that is left. A layout cannot be cut in half, so the overlong case lays the
+         * line range that still fits, draws that, and carries on with the next range.
+         */
+        fun drawParagraph(text: String, paint: TextPaint, left: Float, width: Float, side: AlignSide, gap: Float) {
+            if (text.isBlank()) return
+            val full = layoutOf(text, paint, width, side)
+            var line = 0
+            while (line < full.lineCount) {
+                val room = pageHeight - margin - 25f - yPos
+                if (full.getLineBottom(line + 1) - full.getLineTop(line) > room) {
+                    checkNewPage(room + 1f)
+                    continue
+                }
+                var last = line + 1
+                while (last < full.lineCount && full.getLineBottom(last) - full.getLineTop(line) <= room) last++
+                val block = if (line == 0 && last == full.lineCount) {
+                    full
+                } else {
+                    StaticLayout.Builder.obtain(
+                        text,
+                        full.getLineStart(line),
+                        full.getLineEnd(last - 1),
+                        paint,
+                        width.toInt().coerceAtLeast(1)
+                    )
+                        .setAlignment(Layout.Alignment.ALIGN_NORMAL)
+                        .setTextDirection(
+                            if (side == AlignSide.RIGHT) TextDirectionHeuristics.RTL else TextDirectionHeuristics.LTR
+                        )
+                        .build()
+                }
+                drawBlock(block, left)
+                line = last
+            }
+            yPos += gap
         }
 
         fun wrapLine(text: String, paint: Paint, maxWidth: Float, breakOnWords: Boolean): List<String> {
@@ -264,60 +340,54 @@ object DocumentExporter {
             return result
         }
 
+
         drawHeader()
 
         // Draw Summary if present
         if (!distillationContent.isNullOrBlank()) {
             checkNewPage(40f)
-            val secPaint = Paint().apply {
+            val secPaint = TextPaint().apply {
                 color = Color.rgb(79, 70, 229)
                 textSize = 13f
                 isFakeBoldText = true
             }
-            canvas.drawText("📊 خلاصه و پالایش هوشمند:", margin, yPos, secPaint)
-            yPos += 18f
+            drawLine("📊 خلاصه و پالایش هوشمند:", secPaint, margin, pageWidth - 2 * margin, sideOf("📊 خلاصه و پالایش هوشمند:"), 0f)
+            yPos += 8f
 
             val summaryWidth = pageWidth - 2 * margin - 8f
             for (line in distillationContent.lines()) {
-                for (piece in wrapLine(line, bodyPaint, summaryWidth, true)) {
-                    checkNewPage(16f)
-                    canvas.drawText(piece, margin + 8f, yPos, bodyPaint)
-                    yPos += 14f
-                }
+                drawParagraph(line, bodyPaint, margin + 8f, summaryWidth, sideOf(line), 0f)
             }
             yPos += 10f
         }
 
         // Draw Messages
-        val secPaint = Paint().apply {
+        val secPaint = TextPaint().apply {
             color = Color.rgb(79, 70, 229)
             textSize = 13f
             isFakeBoldText = true
         }
         checkNewPage(30f)
-        canvas.drawText("💬 متن مکالمه:", margin, yPos, secPaint)
-        yPos += 18f
+        drawLine("💬 متن مکالمه:", secPaint, margin, pageWidth - 2 * margin, sideOf("💬 متن مکالمه:"), 0f)
+        yPos += 8f
 
         session.messages.forEachIndexed { idx, msg ->
             checkNewPage(35f)
             val isUser = msg.role == MessageRole.USER
-            val rolePaint = Paint().apply {
+            val rolePaint = TextPaint().apply {
                 color = if (isUser) Color.rgb(22, 163, 74) else Color.rgb(79, 70, 229)
                 textSize = 10.5f
                 isFakeBoldText = true
             }
             val sender = if (isUser) "👤 کاربر" else "🤖 ${msg.modelTag ?: session.modelName}"
             val turnNumber = shownNumber(idx + 1, options)
-            canvas.drawText("#$turnNumber $sender", margin, yPos, rolePaint)
-            yPos += 14f
+            val turnLine = "#$turnNumber $sender"
+            drawLine(turnLine, rolePaint, margin, pageWidth - 2 * margin, sideOf(turnLine), 0f)
+            yPos += 6f
 
             val bodyWidth = pageWidth - 2 * margin - 10f
             for (line in msg.content.lines()) {
-                for (piece in wrapLine(line, bodyPaint, bodyWidth, true)) {
-                    checkNewPage(16f)
-                    canvas.drawText(piece, margin + 10f, yPos, bodyPaint)
-                    yPos += 14f
-                }
+                drawParagraph(line, bodyPaint, margin + 10f, bodyWidth, paragraphSide(msg.direction, line), 0f)
             }
 
             if (options.includeCodeBlocks && msg.codeSnippets.isNotEmpty()) {
