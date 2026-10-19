@@ -58,6 +58,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -179,20 +180,37 @@ fun SettingsScreen(
                         }
                     }
 
-                    OutlinedButton(
-                        onClick = { showLogoutDialog = true },
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.testTag("sign_out_btn"),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ExitToApp,
-                            contentDescription = "Sign Out",
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.error
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        AdaptiveLabel("خروج", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                    if (accountAction(userProfile?.isGuest == true) == AccountAction.SIGN_IN_WITH_GOOGLE) {
+                        val context = LocalContext.current
+                        OutlinedButton(
+                            onClick = {
+                                viewModel.loginWithGoogle(
+                                    context,
+                                    onSuccess = {},
+                                    onError = { message -> viewModel.showMessage(message) }
+                                )
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.testTag("sign_in_google_btn")
+                        ) {
+                            AdaptiveLabel("ورود با گوگل", fontSize = 12.sp)
+                        }
+                    } else {
+                        OutlinedButton(
+                            onClick = { showLogoutDialog = true },
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.testTag("sign_out_btn"),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ExitToApp,
+                                contentDescription = "Sign Out",
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            AdaptiveLabel("خروج", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                        }
                     }
                 }
 
@@ -710,3 +728,9 @@ fun SettingsScreen(
         )
     }
 }
+
+/** Which account action belongs on the settings card: a guest is offered a way IN, not out. */
+internal enum class AccountAction { SIGN_IN_WITH_GOOGLE, SIGN_OUT }
+
+internal fun accountAction(isGuest: Boolean): AccountAction =
+    if (isGuest) AccountAction.SIGN_IN_WITH_GOOGLE else AccountAction.SIGN_OUT
