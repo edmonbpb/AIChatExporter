@@ -289,7 +289,7 @@ object DocumentExporter {
             var line = 0
             while (line < full.lineCount) {
                 val room = pageHeight - margin - 25f - yPos
-                if (full.getLineBottom(line + 1) - full.getLineTop(line) > room) {
+                if (full.getLineBottom(line) - full.getLineTop(line) > room) {
                     checkNewPage(room + 1f)
                     continue
                 }

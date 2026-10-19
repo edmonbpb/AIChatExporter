@@ -36,6 +36,9 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class PdfParagraphSideTest {
 
+    /** Where the measured numbers are left, so a run can be read from outside the device. */
+    private val MEASUREMENT_FILE = "pdf_side_measurement.txt"
+
     private val targetContext = InstrumentationRegistry.getInstrumentation().targetContext
     private val exportRoot = File(targetContext.cacheDir, "pdf_side_exports")
 
@@ -67,36 +70,55 @@ class PdfParagraphSideTest {
 
     @Test
     fun aPersianLineReachesTheRightMarginAndAnEnglishLineStartsAtTheLeft() {
-        val persianFile = exportPdf(PERSIAN, TextDirection.RTL)
-        val englishFile = exportPdf(ENGLISH, TextDirection.LTR)
+        val persianFile = exportPdf(PERSIAN, TextDirection.RTL, "side check persian")
+        val englishFile = exportPdf(ENGLISH, TextDirection.LTR, "side check english")
+        File(persianFile.path).copyTo(File(targetContext.cacheDir, "pdf_side_persian.pdf"), overwrite = true)
+        File(englishFile.path).copyTo(File(targetContext.cacheDir, "pdf_side_english.pdf"), overwrite = true)
 
         val persianPage = renderFirstPage(persianFile)
         val englishPage = renderFirstPage(englishFile)
+        java.io.FileOutputStream(File(targetContext.cacheDir, "pdf_side_persian.png").path).use { out ->
+            persianPage.compress(Bitmap.CompressFormat.PNG, 100, out)
+        }
+        java.io.FileOutputStream(File(targetContext.cacheDir, "pdf_side_english.png").path).use { out ->
+            englishPage.compress(Bitmap.CompressFormat.PNG, 100, out)
+        }
         val w = persianPage.width
 
         val persianBands = inkBands(persianPage)
         val englishBands = inkBands(englishPage)
-        println("pdf-side widths=$w persianBands=$persianBands englishBands=$englishBands")
+        val measured = "page width=$w\npersian bands=$persianBands\nenglish bands=$englishBands"
+        println(measured)
+        File(targetContext.cacheDir, MEASUREMENT_FILE).writeText(measured)
 
         val wideEnough = 0.15f * w
-        val persianFlushRight = persianBands.any { it.right >= 0.92f * w && (it.right - it.left) >= wideEnough }
-        val englishFlushLeft = englishBands.any { it.left <= 0.10f * w && (it.right - it.left) >= wideEnough }
+        // Measured against the page, not against a guessed margin: a line is flush right when the gap
+        // to the right edge is smaller than the gap to the left one, and the other way round for left.
+        val persianFlushRight = persianBands.any {
+            (it.right - it.left) >= wideEnough && (w - it.right) < it.left
+        }
+        val englishFlushLeft = englishBands.any {
+            (it.right - it.left) >= wideEnough && it.left < (w - it.right)
+        }
 
         assertTrue(
-            "no wide Persian line reached the right margin; page width=$w bands=$persianBands",
+            "no wide Persian line sat on the right; page width=$w bands=$persianBands",
             persianFlushRight
         )
         assertTrue(
-            "no wide English line started at the left margin; page width=$w bands=$englishBands",
+            "no wide English line sat on the left; page width=$w bands=$englishBands",
             englishFlushLeft
         )
     }
 
-    /** One real export through the real exporter, into this test's own folder. */
-    private fun exportPdf(content: String, direction: TextDirection): File {
+    /** One real export through the real exporter, into this test's own folder.
+     *  The title differs per export on purpose: the file name is built from the title and the second,
+     *  so two exports in the same second would otherwise land on the same path and the second would
+     *  silently overwrite the first. */
+    private fun exportPdf(content: String, direction: TextDirection, title: String): File {
         val session = ChatSession(
             id = "pdf-side-${direction.name}",
-            title = "side check",
+            title = title,
             platform = PlatformPreset.CUSTOM,
             modelName = "gpt-4o",
             messages = listOf(
@@ -153,20 +175,22 @@ class PdfParagraphSideTest {
             }
             var lastInked = y
             var gap = 0
+            var minLeft = firstDark(pixels, w, y)
+            var maxRight = lastDark(pixels, w, y)
             var probe = y + 1
             while (probe < h && gap < 5) {
-                if (firstDark(pixels, w, probe) < 0) gap++ else {
+                val rowFirst = firstDark(pixels, w, probe)
+                if (rowFirst < 0) {
+                    gap++
+                } else {
                     lastInked = probe
                     gap = 0
+                    minLeft = minOf(minLeft, rowFirst)
+                    maxRight = maxOf(maxRight, lastDark(pixels, w, probe))
                 }
                 probe++
             }
-            bands += Band(
-                top = y,
-                bottom = lastInked,
-                left = firstDark(pixels, w, y),
-                right = lastDark(pixels, w, lastInked)
-            )
+            bands += Band(top = y, bottom = lastInked, left = minLeft, right = maxRight)
             y = lastInked + 1
         }
         return bands
