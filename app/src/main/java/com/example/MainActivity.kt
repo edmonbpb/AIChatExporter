@@ -158,6 +158,11 @@ class MainActivity : ComponentActivity() {
 fun MainAppScreen(viewModel: MainViewModel) {
     val currentScreen by viewModel.currentScreen.collectAsState()
     val activeSession by viewModel.activeSession.collectAsState()
+    val exportState by viewModel.exportState.collectAsState()
+    // Keyed to the session, not to a global flag: a new conversation starts un-exported.
+    val currentSessionExported = activeSession?.let { session ->
+        exportState.lastExportedRecord?.sessionId == session.id
+    } ?: false
     val userMessage by viewModel.userMessage.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
@@ -243,6 +248,7 @@ fun MainAppScreen(viewModel: MainViewModel) {
                 unlockedScreens = unlockedScreens,
                 hasActiveSession = activeSession != null,
                 progressiveEnabled = progressiveEnabled,
+                currentSessionExported = currentSessionExported,
                 usePersianDigits = usePersianDigits,
                 onScreenSelected = {
                     focusManager.clearFocus(force = true)

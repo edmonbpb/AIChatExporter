@@ -98,6 +98,21 @@ enum class AppScreen(
  * When a tab is selected or when a stage finishes, an elevated glowing pill bubble
  * slides smoothly with spring physics from the previous tab to the newly active tab.
  */
+/**
+ * A step is behind us when the workflow has moved past it, or when that step's own work is finished.
+ * `EXPORT` is the last step, so nothing can ever move past it: without the second clause its dot
+ * stayed grey forever, even after the document had been written.
+ */
+internal fun stepIsPassed(
+    step: AppScreen,
+    currentScreen: AppScreen,
+    currentSessionExported: Boolean
+): Boolean {
+    val stepIndex = step.stepIndex ?: return false
+    val currentIndex = currentScreen.stepIndex ?: 0
+    return stepIndex < currentIndex || (step == AppScreen.EXPORT && currentSessionExported)
+}
+
 @Composable
 fun AppBottomNavBar(
     currentScreen: AppScreen,
@@ -106,6 +121,7 @@ fun AppBottomNavBar(
     unlockedScreens: Set<AppScreen> = AppScreen.values().toSet(),
     hasActiveSession: Boolean = false,
     progressiveEnabled: Boolean = true,
+    currentSessionExported: Boolean = false,
     // Required rather than defaulted on purpose: a call site that forgets it fails to compile
     // instead of quietly drawing Latin digits on a screen set to Persian digits.
     usePersianDigits: Boolean
@@ -171,7 +187,8 @@ fun AppBottomNavBar(
             WorkflowBreadcrumbIndicator(
                 currentScreen = currentScreen,
                 unlockedScreens = unlockedScreens,
-                usePersianDigits = usePersianDigits
+                usePersianDigits = usePersianDigits,
+                currentSessionExported = currentSessionExported
             )
             Spacer(modifier = Modifier.height(6.dp))
         }
@@ -371,7 +388,8 @@ fun AppBottomNavBar(
 private fun WorkflowBreadcrumbIndicator(
     currentScreen: AppScreen,
     unlockedScreens: Set<AppScreen>,
-    usePersianDigits: Boolean
+    usePersianDigits: Boolean,
+    currentSessionExported: Boolean
 ) {
     // The rail is drawn outside AppBottomNavBar's body, so it wraps the same preference locally
     // rather than reaching into the caller.
@@ -397,11 +415,11 @@ private fun WorkflowBreadcrumbIndicator(
         workflowSteps.forEachIndexed { index, step ->
             val isUnlocked = step in unlockedScreens || step == AppScreen.IMPORT
             val isCurrent = currentScreen == step
-            val isPassed = (step.stepIndex ?: 0) < (currentScreen.stepIndex ?: 0)
+            val isPassed = stepIsPassed(step, currentScreen, currentSessionExported)
 
             val stepColor by animateColorAsState(
                 targetValue = when {
-                    isCurrent -> MaterialTheme.colorScheme.primary
+                    isCurrent && !isPassed -> MaterialTheme.colorScheme.primary
                     isPassed -> Color(0xFF10B981)
                     isUnlocked -> MaterialTheme.colorScheme.onSurfaceVariant
                     else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
