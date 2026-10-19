@@ -4,6 +4,11 @@ import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -19,6 +24,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.isSpecified
 import androidx.compose.ui.unit.sp
 import com.example.data.model.TextDirection as AppTextDirection
 import com.example.domain.bidi.BidiEngine
@@ -107,11 +113,19 @@ private const val FULL_SLACK_DP = 4
  * Unknown or empty geometry ([availableDp] <= 0, [itemCount] <= 0, [labelChars] <= 0) answers FULL:
  * the caller gets the single-line guard of [AdaptiveLabel] without any shortening of its own copy.
  */
-internal fun labelMode(availableDp: Int, itemCount: Int, labelChars: Int): LabelMode {
+internal fun labelMode(
+    availableDp: Int,
+    itemCount: Int,
+    labelChars: Int,
+    fontSizeSp: Float = 12f
+): LabelMode {
     if (availableDp <= 0 || itemCount <= 0 || labelChars <= 0) return LabelMode.FULL
     val labelDp = availableDp / itemCount - LABEL_CHROME_DP
     if (labelDp <= ICON_ONLY_CEILING_DP) return LabelMode.ICON_ONLY
-    val neededDp = labelChars * DP_PER_LABEL_CHAR
+    // The measured advance belongs to a 12sp label; a bigger face needs proportionally more room,
+    // which is why a 15sp heading used to be cut even when the 12sp labels beside it fit.
+    val dpPerChar = DP_PER_LABEL_CHAR * (fontSizeSp / 12f)
+    val neededDp = labelChars * dpPerChar
     return if (labelDp >= neededDp + FULL_SLACK_DP) LabelMode.FULL else LabelMode.ELLIPSIS
 }
 
@@ -148,14 +162,27 @@ fun AdaptiveLabel(
     fontWeight: FontWeight? = null,
     fontSize: TextUnit = TextUnit.Unspecified
 ) {
-    val widthDp = if (availableDp > 0) availableDp else LocalConfiguration.current.screenWidthDp
-    val mode = labelMode(widthDp, itemCount, text.length)
+    val density = LocalDensity.current
+    // The slot's own width, measured after the first layout, beats the window width: a label in a
+    // two-thirds column used to be told it had the whole screen and was cut in silence.
+    var measuredWidthDp by remember { mutableStateOf(0) }
+    val widthDp = when {
+        availableDp > 0 -> availableDp
+        measuredWidthDp > 0 -> measuredWidthDp
+        else -> LocalConfiguration.current.screenWidthDp
+    }
+    val effectiveFontSize = when {
+        fontSize.isSpecified -> fontSize.value
+        style.fontSize.isSpecified -> style.fontSize.value
+        else -> 12f
+    }
+    val mode = labelMode(widthDp, itemCount, text.length, effectiveFontSize)
 
     // Alignment and direction ride on the style, exactly like BidiText does, because the Material3
     // Text overload has no textDirection parameter of its own.
     Text(
         text = text,
-        modifier = modifier,
+        modifier = modifier.onSizeChanged { measuredWidthDp = with(density) { it.width.toDp().value.toInt() } },
         color = color,
         fontWeight = fontWeight,
         fontSize = fontSize,

@@ -68,6 +68,17 @@ class AdaptiveLabelModeTest {
     }
 
     @Test
+    fun aBiggerFaceNeedsMoreRoomThanATwelveSpLabel() {
+        // 20 characters at 12sp fit a 140dp slot; the same words at 15sp do not, and pretending they
+        // do is what cut the analyze button's label without an ellipsis.
+        assertEquals(LabelMode.FULL, labelMode(availableDp = 140, itemCount = 1, labelChars = 20))
+        assertEquals(
+            LabelMode.ELLIPSIS,
+            labelMode(availableDp = 140, itemCount = 1, labelChars = 20, fontSizeSp = 15f)
+        )
+    }
+
+    @Test
     fun fourSlotsKeepTheirLabelsWholeAsMeasured() {
         // The audit's own case: four items across 360dp leave 66dp, and a 10-character label wants 54dp.
         assertEquals(LabelMode.FULL, labelMode(availableDp = 360, itemCount = 4, labelChars = 10))
