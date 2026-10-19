@@ -268,10 +268,14 @@ internal object ChatGptStreamDecoder {
     }
 
     /**
-     * Turns plus the count of what was dropped. The counter is raised ONLY at the two sites where real
-     * conversation text is lost — a non-text part (`code`, `image`, `reasoning_recap`) and an emptied
-     * body — and BOTH sit below the fallback, role and tool gates, so a cancelled tool call and a system
-     * row never enter the number the banner reports.
+     * Turns plus the count of what was dropped. Only TWO content types carry a visible conversation
+     * turn: `text` and `multimodal_text`. Everything else a share page stores beside them — `thoughts`,
+     * `reasoning_recap`, `model_editable_context`, `code`, tool output — is metadata the reader never
+     * sees as a turn, so skipping it is not a loss and must not be counted as one.
+     *
+     * Measured on a real 798 KB share page (96 nodes): 38 turns read, 24 metadata nodes, and two
+     * `text` messages whose body was the empty string. The old rule counted all 26 of those as
+     * rejected and made the banner claim a drop on a complete read; this rule counts none of them.
      *
      * Returns `Pair(turns, rejectedTurns)`.
      */
@@ -289,25 +293,15 @@ internal object ChatGptStreamDecoder {
             if (role != "user" && role != "assistant") continue
 
             val content = message.opt("content") as? JSONObject ?: continue
-            if (text(content.opt("content_type")) != "text") {
-                rejectedTurns++
-                continue
-            }
+            val type = text(content.opt("content_type"))
+            if (type != "text" && type != "multimodal_text") continue
 
-            val parts = content.opt("parts") as? JSONArray
-            val body = if (parts != null) {
-                val pieces = mutableListOf<String>()
-                for (i in 0 until parts.length()) {
-                    (parts.opt(i) as? String)?.takeIf { it.isNotBlank() }?.let { pieces.add(it) }
-                }
-                pieces.joinToString("\n").trim()
-            } else {
-                // SharedLinkExtractor still counts `{content: {text: "…"}}` as a turn, so this decoder
-                // must not drop it either.
-                text(content.opt("text")).orEmpty()
-            }
+            val body = bodyOf(content)
             if (body.isEmpty()) {
-                rejectedTurns++
+                // An empty text message carries nothing to lose, and a page full of them must not
+                // read as a partial import. Only an attachment-only turn is a real loss: there was a
+                // visible turn whose pictures this text exporter cannot carry.
+                if (type == "multimodal_text" && hasAttachmentPart(content)) rejectedTurns++
                 continue
             }
 
@@ -319,6 +313,33 @@ internal object ChatGptStreamDecoder {
             )
         }
         return Pair(turns, rejectedTurns)
+    }
+
+    /**
+     * The text a content object carries. A `text` part is a plain string; a `multimodal_text` part is
+     * an object whose readable half is `text` (the rest is an image pointer this exporter cannot carry).
+     */
+    private fun bodyOf(content: JSONObject): String {
+        val parts = content.opt("parts") as? JSONArray
+            ?: return text(content.opt("text")).orEmpty()
+        val pieces = mutableListOf<String>()
+        for (i in 0 until parts.length()) {
+            when (val part = parts.opt(i)) {
+                is String -> part.takeIf { it.isNotBlank() }?.let { pieces.add(it) }
+                is JSONObject -> text(part.opt("text"))?.let { pieces.add(it) }
+            }
+        }
+        return pieces.joinToString("\n").trim()
+    }
+
+    /** True when a part exists that is not text we could have carried: an image, a file, an asset. */
+    private fun hasAttachmentPart(content: JSONObject): Boolean {
+        val parts = content.opt("parts") as? JSONArray ?: return false
+        for (i in 0 until parts.length()) {
+            val part = parts.opt(i) as? JSONObject ?: continue
+            if (text(part.opt("text")) == null) return true
+        }
+        return false
     }
 
     private fun text(value: Any?): String? = (value as? String)?.trim()?.takeIf { it.isNotEmpty() }

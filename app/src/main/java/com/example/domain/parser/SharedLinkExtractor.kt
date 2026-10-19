@@ -970,9 +970,6 @@ private val LEGACY_INVENTED_MODELS: Map<PlatformPreset, Set<String>> = mapOf(
     PlatformPreset.CLAUDE to setOf("Claude 3.5 Sonnet")
 )
 
-/** Below this many turns an import is a fragment even when nothing was measurably dropped. */
-private const val PARTIAL_IMPORT_MIN_TURNS = 3
-
 /**
  * The reading half of the honesty fix — the sibling of `LEGACY_INVENTED_EMAILS` in `MainViewModel`.
  * Old library rows and old drafts still hold the invented «GPT-4o»; nothing rewrites them (Room is on
@@ -987,34 +984,24 @@ internal fun scrubInventedModel(platform: PlatformPreset, stored: String?): Stri
 }
 
 /**
- * The one honest sentence about an import that did not read everything. Exactly two cases, and each
- * speaks only what was measured:
- * (a) the decoder COUNTED refusals on the page, so the drop count is named beside the count that
- * arrived — a drop figure alone tells the user nothing about how much did come through;
- * (b) nothing was ever counted (`rejectedTurns` is `0`, which `ChatSession` defines as «never counted»,
- * NOT as «zero rejected») and the read came out with so few turns that a whole side of the exchange is
- * obviously missing. This case names NO drop figure: `rejectedTurns` has no Room column
- * (`data/local/Entities.kt`), so a share page that was written to the library and reloaded comes back
- * with `0`, and printing a zero drop count for it would be a measurement nobody took — the same class
- * of fabricated number this round deletes elsewhere.
+ * The one honest sentence about an import that did not read everything. It speaks ONLY a measured
+ * number: `rejectedTurns` counts loops the reader looked at and could not carry as a turn, and `0`
+ * means nothing was measured as dropped (whether because the read was complete or because the source
+ * path never counts), so a zero never turns into a claim about a short read.
+ *
+ * A session reloaded from the library loses the count (no Room column), so the banner simply does not
+ * appear for it — silence is honest there; an invented «short read» was not.
  * Pure: no Compose, no Android API. The banner in `WorkspaceScreen` renders this string and the
  * one-line toast in `MainViewModel` is gated on this function returning `null`.
  */
 internal fun partialImportNotice(session: ChatSession): String? {
     val dropped = session.rejectedTurns
-    val kept = session.messages.size
-    if (dropped <= 0 && kept >= PARTIAL_IMPORT_MIN_TURNS) return null
+    if (dropped <= 0) return null
 
-    val keptText = BidiEngine.toPersianDigits(kept.toString())
-
-    // (b) few turns, never counted: the short read is said out loud, the drop figure is not invented.
-    if (dropped <= 0) {
-        return "این گفتگو کامل خوانده نشد؛ تنها ${keptText} نوبت از آن خوانده شد."
-    }
-
-    // (a) a measured drop: both numbers the reader of the banner needs.
+    val keptText = BidiEngine.toPersianDigits(session.messages.size.toString())
     val droppedText = BidiEngine.toPersianDigits(dropped.toString())
-    return "این گفتگو کامل خوانده نشد؛ ${droppedText} نوبت رد شد و تنها ${keptText} نوبت از آن خوانده شد."
+    return "این گفتگو کامل خوانده نشد؛ ${droppedText} نوبت رد شد و تنها ${keptText} نوبت از آن خوانده شد. " +
+        "یک‌بار دیگر با کلیدِ «موتور خواندن» در تنظیمات همان لینک را وارد کن، یا متنِ گفتگو را مستقیم جای‌گذاری کن."
 }
 
 /** Which side of the exchange a speaker name belongs to. */

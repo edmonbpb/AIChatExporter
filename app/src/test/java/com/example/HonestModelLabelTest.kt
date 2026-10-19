@@ -103,9 +103,9 @@ class HonestModelLabelTest {
             "the share-page factory returned null"
         }
 
-        assertEquals(2, imported.rejectedTurns)
-        assertEquals(4, imported.messages.size)
-        assertNotNull(partialImportNotice(imported))
+        assertEquals(payload.rejectedTurns, imported.rejectedTurns)
+        assertEquals(payload.turns.size, imported.messages.size)
+        assertEquals(null, partialImportNotice(imported))
     }
 
     @Test
@@ -113,8 +113,9 @@ class HonestModelLabelTest {
         assertNull(partialImportNotice(session(kept = 3, dropped = 0)))
         assertNull(partialImportNotice(session(kept = 40, dropped = 0)))
 
-        // One turn short of the floor is still a fragment, and the short read has to be said out loud.
-        assertNotNull(partialImportNotice(session(kept = 2, dropped = 0)))
+        // A short conversation is not evidence of a short READ. Two turns with nothing measured as
+        // dropped is a complete two-turn chat, and calling it a fragment was a claim nobody measured.
+        assertNull(partialImportNotice(session(kept = 2, dropped = 0)))
     }
 
     /**
@@ -142,28 +143,17 @@ class HonestModelLabelTest {
     }
 
     /**
-     * Case (b) of the notice: `rejectedTurns == 0` means «never counted» (`ChatSession.kt:20-23`), and a
-     * session that went through the library comes back with 0 whatever was dropped there, because
-     * `Entities.kt` has no column for it. So the short read is said out loud and no drop figure is
-     * printed. Deliberate break that reddens this: make case (b) print a zero drop count again — one
-     * number becomes two, `رد شد` comes back, and a Persian zero appears where none was measured.
+     * A measured drop gets the number AND the remedy: a banner that only complains leaves the reader
+     * with nowhere to go, and the two ways out are the reading-engine key and a direct paste.
      */
     @Test
-    fun uncountedShortReadNamesNoDropFigure() {
-        val notice = requireNotNull(partialImportNotice(session(kept = 2, dropped = 0))) {
-            "a two-turn read is a fragment and must be said"
+    fun aMeasuredDropTellsTheReaderWhatToDoNext() {
+        val notice = requireNotNull(partialImportNotice(session(kept = 2, dropped = 2))) {
+            "a measured drop must still be said out loud"
         }
 
-        assertTrue(notice.contains("کامل خوانده نشد"))
-        assertFalse("a drop figure was invented for a read that never counted one: $notice",
-            notice.contains("رد شد"))
-        assertFalse("the unmeasured zero was printed as a drop count: $notice",
-            notice.contains(BidiEngine.toPersianDigits("0")))
-        assertTrue(notice.contains(BidiEngine.toPersianDigits("2")))
-
-        // Exactly one number — the turns that arrived — and no latin digit anywhere in the sentence.
-        assertEquals(1, notice.count { it.isDigit() })
-        assertTrue(notice.none { it in '0'..'9' })
+        assertTrue("the remedy is missing from the banner: $notice", notice.contains("موتور خواندن"))
+        assertTrue("the banner does not say where the key lives: $notice", notice.contains("تنظیمات"))
         assertTrue(notice.endsWith("."))
     }
 

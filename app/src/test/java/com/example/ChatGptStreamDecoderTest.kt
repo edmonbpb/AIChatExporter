@@ -81,6 +81,19 @@ class ChatGptStreamDecoderTest {
         }}]
     """
 
+    // One text turn and one picture-only turn: the second is a visible turn this text exporter
+    // cannot carry, so it is the one kind of loss that must still be counted.
+    private val attachmentOnlyFlat = """
+        [{"title":"text and attachment","default_model_slug":"auto","mapping":{
+          "a1":{"message":{"author":{"role":"user","metadata":{}},"create_time":1.0,
+                 "content":{"content_type":"text","parts":["first question"],"status":"finished_successfully"},
+                 "mapping":{"is_fallback":false}}},
+          "a2":{"message":{"author":{"role":"assistant","metadata":{}},"create_time":2.0,
+                 "content":{"content_type":"multimodal_text","parts":[{"content_type":"image_asset_pointer","asset_pointer":"file-service://x"}]},
+                 "mapping":{"is_fallback":false}}}
+        }}]
+    """
+
     // Three nodes carry a NON-text content type and an empty body each, and every one of them is
     // already refused by a gate above: a `system` row, a `tool` row, a cancelled fallback answer.
     private val gatedDropsFlat = """
@@ -237,17 +250,28 @@ class ChatGptStreamDecoderTest {
     // ── What the reader drops, and what it is allowed to say about the model ────────────────────
 
     @Test
-    fun nonTextPartsAreCountedAsRejectedTurns() {
+    fun metadataAndEmptyMessagesAreNotCountedAsDroppedTurns() {
         val payload = requireNotNull(ChatGptStreamDecoder.decodeFlatArray(droppedContentFlat)) { "drop fixture decoded to null" }
 
         assertEquals(3, payload.turns.size)
-        // m2 (a `code` part) and m4 (an emptied text body) are the two losses; nothing is counted twice.
-        assertEquals(2, payload.rejectedTurns)
+        // m2 is a `code` row, which is not a conversation turn at all; m4 is a text message whose body
+        // is empty, so there was nothing to carry. Neither is a lost turn.
+        assertEquals(0, payload.rejectedTurns)
 
-        // The measured page shape: nine nodes in, four turns out, exactly two non-text drops.
+        // The measured page shape: nine nodes in, four turns out, nothing dropped.
         val fromFixture = requireNotNull(ChatGptStreamDecoder.decodeFlatArray(flatJson)) { "flat fixture decoded to null" }
         assertEquals(4, fromFixture.turns.size)
-        assertEquals(2, fromFixture.rejectedTurns)
+        assertEquals(0, fromFixture.rejectedTurns)
+    }
+
+    @Test
+    fun anAttachmentOnlyTurnIsCountedAsDropped() {
+        // A visible turn whose only content is a picture: there is a turn, and this text exporter
+        // cannot carry it, so the count must say one turn was missed.
+        val payload = requireNotNull(ChatGptStreamDecoder.decodeFlatArray(attachmentOnlyFlat)) { "attachment fixture decoded to null" }
+
+        assertEquals(1, payload.turns.size)
+        assertEquals(1, payload.rejectedTurns)
     }
 
     @Test
@@ -260,9 +284,9 @@ class ChatGptStreamDecoderTest {
         assertEquals(0, payload.rejectedTurns)
 
         // Same shape on the real fixture: the `system` row, the `tool` row and the cancelled fallback
-        // answer must not lift the number past the two genuine content losses.
+        // answer must not lift the number past the genuine content losses (here: none).
         val fromFixture = requireNotNull(ChatGptStreamDecoder.decodeFlatArray(flatJson)) { "flat fixture decoded to null" }
-        assertEquals(2, fromFixture.rejectedTurns)
+        assertEquals(0, fromFixture.rejectedTurns)
     }
 
     @Test
