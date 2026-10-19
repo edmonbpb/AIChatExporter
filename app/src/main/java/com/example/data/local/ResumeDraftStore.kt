@@ -82,7 +82,6 @@ internal fun draftToJson(session: ChatSession): JSONObject {
         // The count of turns the reader refused to carry has to survive a killed process, or the honest
         // warning disappears on the very next restore. Old drafts simply have no such key; the reader
         // below defaults it to 0.
-        put("rejectedTurns", session.rejectedTurns)
         put("createdAt", session.createdAt)
         put("updatedAt", session.updatedAt)
         put("messages", messages)
@@ -133,7 +132,10 @@ internal fun draftFromJson(obj: JSONObject): ChatSession? {
             isBookmarked = obj.optBoolean("isBookmarked"),
             customNotes = obj.getString("customNotes"),
             // optInt, not getInt: a draft written before this key existed must still load, with 0 = never counted.
-            rejectedTurns = obj.optInt("rejectedTurns", 0)
+            // Counts written by older builds used a rule that counted metadata as dropped turns, and
+            // a draft cannot say which rule wrote its number. The live import already told the user;
+            // a resumed session must not repeat a figure it cannot vouch for.
+            rejectedTurns = 0
         )
     } catch (_: Exception) {
         null

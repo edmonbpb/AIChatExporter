@@ -158,22 +158,19 @@ class ResumeDraftStoreTest {
     }
 
     /**
-     * The partial-read warning is built from `rejectedTurns`, so a killed process must not be able to
-     * turn «some turns were dropped» back into «nothing was dropped».
-     *
-     * Deliberate break: delete `put("rejectedTurns", session.rejectedTurns)` from `draftToJson` — the
-     * `has` check, `assertEquals(3, ...)` and `assertEquals(session, restored)` all go red.
+     * A stored count is NOT carried back. Drafts written by older builds counted metadata nodes as
+     * dropped turns, and nothing in the file says which rule wrote the number, so a resumed session
+     * says nothing about drops instead of repeating a figure it cannot vouch for.
      */
     @Test
-    fun partialImportCountsSurviveTheDraftRoundTrip() {
+    fun aStoredDropCountIsNotCarriedIntoTheResumedSession() {
         val session = draftSession().copy(rejectedTurns = 3)
 
         val json = draftToJson(session)
-        assertTrue("the draft file must carry the count", json.has("rejectedTurns"))
+        assertFalse("the draft must not carry a count it cannot vouch for", json.has("rejectedTurns"))
 
         val restored = requireNotNull(draftFromJson(json)) { "draft did not come back" }
-        assertEquals(3, restored.rejectedTurns)
-        assertEquals(session, restored)
+        assertEquals(0, restored.rejectedTurns)
     }
 
     /**
