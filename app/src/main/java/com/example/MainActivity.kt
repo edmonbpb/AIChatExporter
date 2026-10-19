@@ -9,9 +9,16 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
@@ -32,6 +39,7 @@ import androidx.compose.ui.platform.TextToolbarStatus
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
 import com.example.ui.components.AppBottomNavBar
 import com.example.ui.components.AppScreen
 import com.example.ui.components.AppTopBar
@@ -163,6 +171,7 @@ fun MainAppScreen(viewModel: MainViewModel) {
     val currentSessionExported = activeSession?.let { session ->
         exportState.lastExportedRecord?.sessionId == session.id
     } ?: false
+    var showNewSessionDialog by remember { mutableStateOf(false) }
     val userMessage by viewModel.userMessage.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
@@ -236,7 +245,7 @@ fun MainAppScreen(viewModel: MainViewModel) {
                 activeSession = activeSession,
                 onSaveSession = { viewModel.saveActiveSessionToDatabase() },
                 onToggleBookmark = { viewModel.toggleBookmarkActiveSession() },
-                onNewSession = { viewModel.resetSession() }
+                onNewSession = { showNewSessionDialog = true }
             )
         },
         bottomBar = {
@@ -275,5 +284,51 @@ fun MainAppScreen(viewModel: MainViewModel) {
                 }
             }
         }
+    }
+
+    if (showNewSessionDialog) {
+        val hasUnsavedWork = activeSession?.messages?.isNotEmpty() == true
+        AlertDialog(
+            onDismissRequest = { showNewSessionDialog = false },
+            title = { Text("نشستِ تازه") },
+            text = {
+                Column {
+                    Text("این کار نشستِ فعلی را می‌بندد. مطمئنی؟")
+                    if (hasUnsavedWork) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text("نشستِ فعلی ذخیره نشده است.")
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                    TextButton(
+                        onClick = {
+                            showNewSessionDialog = false
+                            viewModel.navigateTo(AppScreen.LIBRARY)
+                        }
+                    ) { Text("برگشت به کارهای قبلی") }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showNewSessionDialog = false
+                        viewModel.resetSession()
+                    }
+                ) { Text("ببند و شروع کن") }
+            },
+            dismissButton = {
+                Row {
+                    if (hasUnsavedWork) {
+                        TextButton(
+                            onClick = {
+                                showNewSessionDialog = false
+                                viewModel.saveActiveSessionToDatabase()
+                                viewModel.resetSession()
+                            }
+                        ) { Text("ذخیره کن و ببند") }
+                    }
+                    TextButton(onClick = { showNewSessionDialog = false }) { Text("انصراف") }
+                }
+            }
+        )
     }
 }
