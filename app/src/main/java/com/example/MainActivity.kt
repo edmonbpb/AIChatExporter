@@ -158,7 +158,6 @@ class MainActivity : ComponentActivity() {
 fun MainAppScreen(viewModel: MainViewModel) {
     val currentScreen by viewModel.currentScreen.collectAsState()
     val activeSession by viewModel.activeSession.collectAsState()
-    val globalDirection by viewModel.globalDirection.collectAsState()
     val userMessage by viewModel.userMessage.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
@@ -230,8 +229,6 @@ fun MainAppScreen(viewModel: MainViewModel) {
             AppTopBar(
                 currentScreen = currentScreen,
                 activeSession = activeSession,
-                currentDirection = globalDirection,
-                onToggleDirection = { viewModel.toggleDirection() },
                 onSaveSession = { viewModel.saveActiveSessionToDatabase() },
                 onToggleBookmark = { viewModel.toggleBookmarkActiveSession() },
                 onNewSession = { viewModel.resetSession() }

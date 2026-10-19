@@ -88,7 +88,6 @@ fun DistillationScreen(
     val session by viewModel.activeSession.collectAsState()
     val state by viewModel.distillationState.collectAsState()
     val usePersianDigits by viewModel.usePersianDigits.collectAsState()
-    val globalDirection by viewModel.globalDirection.collectAsState()
     val history by viewModel.distillationHistory.collectAsState()
 
     // Same helper shape LibraryScreen.kt:87 uses: one place decides whether a number is shown with
@@ -495,8 +494,7 @@ fun DistillationScreen(
                             text = state.currentResult!!,
                             color = MaterialTheme.colorScheme.onSurface,
                             style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 24.sp),
-                            usePersianDigits = usePersianDigits,
-                            direction = globalDirection
+                            usePersianDigits = usePersianDigits
                         )
                     }
 

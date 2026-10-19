@@ -83,7 +83,6 @@ fun WorkspaceScreen(
     val filterCodeOnly by viewModel.filterOnlyCode.collectAsState()
     val filterUserOnly by viewModel.filterOnlyUser.collectAsState()
     val filterAiOnly by viewModel.filterOnlyAssistant.collectAsState()
-    val globalDirection by viewModel.globalDirection.collectAsState()
     val usePersianDigits by viewModel.usePersianDigits.collectAsState()
 
     var editingMessage by remember { mutableStateOf<ChatMessage?>(null) }
@@ -298,7 +297,6 @@ fun WorkspaceScreen(
                     message = msg,
                     index = index,
                     usePersianDigits = usePersianDigits,
-                    globalDirection = globalDirection,
                     onEdit = {
                         editingMessage = msg
                         editContentText = msg.content
@@ -416,7 +414,6 @@ fun MessageTurnCard(
     message: ChatMessage,
     index: Int,
     usePersianDigits: Boolean,
-    globalDirection: com.example.data.model.TextDirection,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     onCopy: () -> Unit,
@@ -537,8 +534,7 @@ fun MessageTurnCard(
                                 text = message.reasoning,
                                 color = Color(0xFFCBD5E1),
                                 style = MaterialTheme.typography.bodySmall,
-                                usePersianDigits = usePersianDigits,
-                                direction = globalDirection
+                                usePersianDigits = usePersianDigits
                             )
                         }
                     }
@@ -552,8 +548,7 @@ fun MessageTurnCard(
                 text = message.content,
                 color = MaterialTheme.colorScheme.onSurface,
                 style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 22.sp),
-                usePersianDigits = usePersianDigits,
-                direction = globalDirection
+                usePersianDigits = usePersianDigits
             )
 
             // Extracted Code Blocks

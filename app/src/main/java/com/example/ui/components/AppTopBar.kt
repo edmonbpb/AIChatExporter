@@ -15,7 +15,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Save
-import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -27,14 +26,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.ChatSession
-import com.example.data.model.TextDirection
 import com.example.ui.theme.Cyan40
 import com.example.ui.theme.Indigo40
 
@@ -43,8 +40,6 @@ import com.example.ui.theme.Indigo40
 fun AppTopBar(
     currentScreen: AppScreen,
     activeSession: ChatSession?,
-    currentDirection: TextDirection,
-    onToggleDirection: () -> Unit,
     onSaveSession: () -> Unit,
     onToggleBookmark: () -> Unit,
     onNewSession: () -> Unit,
@@ -120,22 +115,6 @@ fun AppTopBar(
             }
         },
         actions = {
-            // Direction Toggle
-            IconButton(
-                onClick = onToggleDirection,
-                modifier = Modifier.testTag("toggle_direction_button")
-            ) {
-                Icon(
-                    imageVector = Icons.Default.SwapHoriz,
-                    contentDescription = "Toggle BiDi Direction",
-                    tint = when (currentDirection) {
-                        TextDirection.RTL -> Color(0xFF10B981)
-                        TextDirection.LTR -> Color(0xFF38BDF8)
-                        TextDirection.MIXED -> MaterialTheme.colorScheme.onSurfaceVariant
-                    }
-                )
-            }
-
             if (activeSession != null && activeSession.messages.isNotEmpty()) {
                 // Bookmark toggle
                 IconButton(

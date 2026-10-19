@@ -137,7 +137,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val filterOnlyCode = MutableStateFlow(false)
     val filterOnlyUser = MutableStateFlow(false)
     val filterOnlyAssistant = MutableStateFlow(false)
-    val globalDirection = MutableStateFlow(TextDirection.MIXED)
     val usePersianDigits = MutableStateFlow(true)
 
     // Distillation State
@@ -609,14 +608,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // --- Workspace Actions ---
-
-    fun toggleDirection() {
-        globalDirection.value = when (globalDirection.value) {
-            TextDirection.MIXED -> TextDirection.RTL
-            TextDirection.RTL -> TextDirection.LTR
-            TextDirection.LTR -> TextDirection.MIXED
-        }
-    }
 
     fun togglePersianDigits() {
         usePersianDigits.value = !usePersianDigits.value
