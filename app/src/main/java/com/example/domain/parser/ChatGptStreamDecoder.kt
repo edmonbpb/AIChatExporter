@@ -38,18 +38,49 @@ internal object ChatGptStreamDecoder {
     private const val FALLBACK_TITLE = "گفتگوی ChatGPT"
     private const val FALLBACK_MODEL = "ChatGPT"
 
-    /** Whole page in: the enqueue literals are found and unescaped, then each is decoded. */
+    /**
+     * Whole page in: every enqueue literal is unescaped and decoded, and the payloads are merged.
+     * Returning on the first decodable chunk was a silent loss: a page that splits its conversation
+     * (or puts a shorter route payload first) would lose every turn after that chunk.
+     */
     fun decode(html: String): SharedConversationPayload? {
         val matcher = ENQUEUE_CALL.matcher(html)
         var consumedThrough = -1
+        val payloads = mutableListOf<SharedConversationPayload>()
         while (matcher.find()) {
             if (matcher.start() < consumedThrough) continue
             val literal = findLiteral(html, matcher.end()) ?: continue
             consumedThrough = literal.second
             val flatJson = unescape(literal.first) ?: continue
-            decodeFlatArray(flatJson)?.let { return it }
+            decodeFlatArray(flatJson)?.let { payloads += it }
         }
-        return null
+        return merge(payloads)
+    }
+
+    /**
+     * Chunks are merged turn by turn: the same turn rendered twice is carried once, in the order it
+     * first appeared. The title and model come from the chunk that held the most turns, and every
+     * measured drop is summed so a refusal in any chunk still reaches the banner.
+     */
+    private fun merge(payloads: List<SharedConversationPayload>): SharedConversationPayload? {
+        if (payloads.isEmpty()) return null
+        if (payloads.size == 1) return payloads.first()
+
+        val turns = mutableListOf<ExtractedTurn>()
+        val seen = HashSet<Pair<MessageRole, String>>()
+        payloads.forEach { payload ->
+            payload.turns.forEach { turn ->
+                if (seen.add(turn.role to turn.content)) turns += turn
+            }
+        }
+        val best = payloads.maxByOrNull { it.turns.size } ?: payloads.first()
+        return SharedConversationPayload(
+            title = best.title,
+            modelName = best.modelName,
+            modelSlug = best.modelSlug,
+            turns = turns,
+            rejectedTurns = payloads.sumOf { it.rejectedTurns }
+        )
     }
 
     /**
@@ -294,9 +325,11 @@ internal object ChatGptStreamDecoder {
 
             val content = message.opt("content") as? JSONObject ?: continue
             val type = text(content.opt("content_type"))
-            if (type != "text" && type != "multimodal_text") continue
+            // `code` is a visible turn on a share page: a code-interpreter block the reader sees as
+            // its own answer. Dropping it lost real content, not metadata.
+            if (type != "text" && type != "multimodal_text" && type != "code") continue
 
-            val body = bodyOf(content)
+            val body = if (type == "code") codeOf(content) else bodyOf(content)
             if (body.isEmpty()) {
                 // An empty text message carries nothing to lose, and a page full of them must not
                 // read as a partial import. Only an attachment-only turn is a real loss: there was a
@@ -327,6 +360,20 @@ internal object ChatGptStreamDecoder {
             when (val part = parts.opt(i)) {
                 is String -> part.takeIf { it.isNotBlank() }?.let { pieces.add(it) }
                 is JSONObject -> text(part.opt("text"))?.let { pieces.add(it) }
+            }
+        }
+        return pieces.joinToString("\n").trim()
+    }
+
+    /** The source of a `code` content object: `{language, code}` parts, or a plain `text` field. */
+    private fun codeOf(content: JSONObject): String {
+        val parts = content.opt("parts") as? JSONArray
+            ?: return text(content.opt("text")).orEmpty()
+        val pieces = mutableListOf<String>()
+        for (i in 0 until parts.length()) {
+            when (val part = parts.opt(i)) {
+                is String -> part.takeIf { it.isNotBlank() }?.let { pieces.add(it) }
+                is JSONObject -> text(part.opt("code"))?.let { pieces.add(it) }
             }
         }
         return pieces.joinToString("\n").trim()

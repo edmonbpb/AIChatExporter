@@ -6,6 +6,7 @@ import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ChatGptStreamDecoderTest {
@@ -77,6 +78,15 @@ class ChatGptStreamDecoderTest {
                  "content":{"content_type":"text","parts":["","   "]},"mapping":{"is_fallback":false}}},
           "m5":{"message":{"author":{"role":"assistant","metadata":{}},"create_time":5.0,
                  "content":{"content_type":"text","parts":["پاسخ سوم"],"status":"finished_successfully"},
+                 "mapping":{"is_fallback":false}}}
+        }}]
+    """
+
+    // One code-interpreter answer: a turn the reader sees, so it must be carried, not skipped.
+    private val codeOnlyFlat = """
+        [{"title":"a code answer","default_model_slug":"auto","mapping":{
+          "c1":{"message":{"author":{"role":"assistant","metadata":{}},"create_time":1.0,
+                 "content":{"content_type":"code","parts":[{"language":"python","code":"print(1)"}]},
                  "mapping":{"is_fallback":false}}}
         }}]
     """
@@ -253,15 +263,38 @@ class ChatGptStreamDecoderTest {
     fun metadataAndEmptyMessagesAreNotCountedAsDroppedTurns() {
         val payload = requireNotNull(ChatGptStreamDecoder.decodeFlatArray(droppedContentFlat)) { "drop fixture decoded to null" }
 
-        assertEquals(3, payload.turns.size)
-        // m2 is a `code` row, which is not a conversation turn at all; m4 is a text message whose body
-        // is empty, so there was nothing to carry. Neither is a lost turn.
+        // m2 is a code answer, which IS a visible turn and is now carried; m4 is a text message whose
+        // body is empty, so there was nothing to carry and nothing was lost.
+        assertEquals(4, payload.turns.size)
         assertEquals(0, payload.rejectedTurns)
 
         // The measured page shape: nine nodes in, four turns out, nothing dropped.
         val fromFixture = requireNotNull(ChatGptStreamDecoder.decodeFlatArray(flatJson)) { "flat fixture decoded to null" }
         assertEquals(4, fromFixture.turns.size)
         assertEquals(0, fromFixture.rejectedTurns)
+    }
+
+    @Test
+    fun everyChunkOfThePageIsReadNotOnlyTheFirst() {
+        // A page may deliver the conversation in more than one chunk; stopping at the first decodable
+        // one silently dropped every turn that came after it.
+        val page = "<html><body><script>" +
+            "streamController.enqueue(${JSONObject.quote(twoTurnFlat)})" +
+            "</script><script>streamController.enqueue(${JSONObject.quote(codeOnlyFlat)})</script></body></html>"
+
+        val payload = requireNotNull(ChatGptStreamDecoder.decode(page)) { "merged payload is null" }
+        assertEquals(3, payload.turns.size)
+        assertTrue(payload.turns.any { it.content == "print(1)" })
+    }
+
+    @Test
+    fun theSameTurnDeliveredTwiceIsCarriedOnce() {
+        val page = "<html><body><script>" +
+            "streamController.enqueue(${JSONObject.quote(twoTurnFlat)})" +
+            "</script><script>streamController.enqueue(${JSONObject.quote(twoTurnFlat)})</script></body></html>"
+
+        val payload = requireNotNull(ChatGptStreamDecoder.decode(page)) { "merged payload is null" }
+        assertEquals(2, payload.turns.size)
     }
 
     @Test
