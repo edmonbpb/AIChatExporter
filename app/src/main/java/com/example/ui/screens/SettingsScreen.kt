@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -66,6 +67,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.components.AdaptiveLabel
+import com.example.data.remote.drive.DriveAuth
 import com.example.ui.theme.AppFontFamilyPreset
 import com.example.ui.theme.AppThemePreset
 import com.example.ui.theme.Cyan40
@@ -216,12 +218,61 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Cloud sync has no implementation behind it, so it is stated as absent rather than offered as a switch.
+                // One-way backup into a visible folder. The permission is asked here, never silently.
+                val driveContext = LocalContext.current
+                val driveStatus by viewModel.driveBackupStatus.collectAsState()
+                var driveLinked by remember { mutableStateOf(viewModel.driveIsLinked()) }
+                val driveLauncher = rememberLauncherForActivityResult(
+                    androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+                ) { driveLinked = viewModel.driveIsLinked() }
+
+                if (!driveLinked) {
+                    OutlinedButton(
+                        onClick = {
+                            runCatching { driveLauncher.launch(DriveAuth.client(driveContext).signInIntent) }
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.testTag("drive_connect_btn")
+                    ) {
+                        AdaptiveLabel("اتصال به گوگل درایو", fontSize = 13.sp)
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "برای پشتیبان‌گیری، یک بار اجازهٔ دسترسی به فایل‌های همین برنامه در درایو لازم است.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = { viewModel.backUpToDriveNow() },
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.testTag("drive_backup_now")
+                        ) {
+                            AdaptiveLabel("پشتیبان‌گیری همین حالا", fontSize = 13.sp)
+                        }
+                        OutlinedButton(
+                            onClick = { viewModel.restoreFromDrive() },
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.testTag("drive_restore")
+                        ) {
+                            AdaptiveLabel("بازگردانی", fontSize = 13.sp)
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "هر روزی که برنامه را باز کنی، حداکثر یک پشتیبان خودکار در پوشهٔ AIChatExporter/ ساخته می‌شود. " +
+                            "بازگردانی هیچ گفتگویی را پاک نمی‌کند.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = "☁️ همگام‌سازی با Google Drive در این نسخه پیاده نشده است؛ مکالمات و اسناد فقط روی همین گوشی ذخیره می‌شوند.",
+                    text = driveStatus ?: ("آخرین پشتیبان: " + (viewModel.driveLastBackupDate() ?: "هنوز نه")),
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.testTag("drive_not_implemented")
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.testTag("drive_status")
                 )
             }
         }

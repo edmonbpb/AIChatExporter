@@ -6,6 +6,7 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.local.AppDatabase
+import com.example.data.backup.BackupManager
 import com.example.data.local.AIDistillationEntity
 import com.example.data.local.ChatMessageEntity
 import com.example.data.local.ChatSessionEntity
@@ -22,6 +23,7 @@ import com.example.data.model.PlatformPreset
 import com.example.data.model.TextDirection
 import com.example.data.model.UserProfile
 import com.example.data.remote.auth.GoogleAuthManager
+import com.example.data.remote.drive.DriveAuth
 import com.example.data.remote.auth.GoogleSignInOutcome
 import com.example.data.remote.auth.messageFa
 import com.example.data.remote.gemini.GeminiClient
@@ -145,6 +147,47 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _distillationHistory = MutableStateFlow<List<AIDistillationEntity>>(emptyList())
     val distillationHistory: StateFlow<List<AIDistillationEntity>> = _distillationHistory.asStateFlow()
+
+    // Drive backup: one file a day in a visible folder, restored by hand and never destructive.
+    private val _driveBackupStatus = MutableStateFlow<String?>(null)
+    val driveBackupStatus: StateFlow<String?> = _driveBackupStatus.asStateFlow()
+    private val backupManager by lazy { BackupManager(getApplication(), db) }
+
+    fun driveIsLinked(): Boolean = DriveAuth.hasConsent(getApplication())
+
+    fun driveLastBackupDate(): String? = backupManager.lastBackupDate()
+
+    private suspend fun driveTokenOrNull(): String? =
+        withContext(Dispatchers.IO) { DriveAuth.accessToken(getApplication()) }
+
+    private fun drivePermissionMissing() {
+        _driveBackupStatus.value = "اجازهٔ نوشتن در گوگل درایو داده نشده است؛ از دکمهٔ اتصال استفاده کن."
+    }
+
+    fun backUpToDriveNow() {
+        viewModelScope.launch {
+            _driveBackupStatus.value = "در حال پشتیبان‌گیری…"
+            val token = driveTokenOrNull() ?: run { drivePermissionMissing(); return@launch }
+            _driveBackupStatus.value = backupManager.backUp(token).message
+        }
+    }
+
+    fun restoreFromDrive() {
+        viewModelScope.launch {
+            _driveBackupStatus.value = "در حال بازگردانی…"
+            val token = driveTokenOrNull() ?: run { drivePermissionMissing(); return@launch }
+            _driveBackupStatus.value = backupManager.restoreLatest(token).message
+        }
+    }
+
+    /** Called once when the app opens: at most one automatic backup per calendar day. */
+    fun autoBackUpIfDue() {
+        viewModelScope.launch {
+            if (!backupManager.isDue()) return@launch
+            val token = driveTokenOrNull() ?: return@launch
+            backupManager.backUp(token)
+        }
+    }
 
     // Export State
     private val _exportState = MutableStateFlow(ExportUiState())

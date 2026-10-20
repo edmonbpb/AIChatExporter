@@ -172,6 +172,8 @@ fun MainAppScreen(viewModel: MainViewModel) {
         exportState.lastExportedRecord?.sessionId == session.id
     } ?: false
     var showNewSessionDialog by remember { mutableStateOf(false) }
+    // One automatic backup per local calendar day, on the first open of that day.
+    LaunchedEffect(Unit) { viewModel.autoBackUpIfDue() }
     val userMessage by viewModel.userMessage.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current

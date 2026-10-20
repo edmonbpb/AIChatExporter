@@ -112,6 +112,9 @@ dependencies {
   implementation(libs.androidx.compose.ui.graphics)
   implementation(libs.androidx.compose.ui.tooling.preview)
   implementation(libs.androidx.core.ktx)
+  // Drive backup asks for the drive.file scope through GoogleSignInClient; the credentials
+  // library only carries it at runtime, so the compile classpath needs it named here.
+  implementation("com.google.android.gms:play-services-auth:21.1.1")
   implementation(libs.androidx.lifecycle.runtime.compose)
   implementation(libs.androidx.lifecycle.runtime.ktx)
   implementation(libs.androidx.lifecycle.viewmodel.compose)
