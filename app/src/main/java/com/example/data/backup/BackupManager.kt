@@ -5,6 +5,7 @@ import com.example.data.local.AppDatabase
 import com.example.data.remote.drive.DriveClient
 import com.example.domain.backup.BackupFormat
 import com.example.domain.backup.BackupPayload
+import com.example.domain.backup.planRestore
 import com.example.domain.exporter.DocumentExporter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -68,15 +69,14 @@ internal class BackupManager(
         val payload = BackupPayload.fromJson(raw)
             ?: return@withContext Outcome(false, "فایل پشتیبان قابل خواندن نبود؛ چیزی روی گوشی تغییر نکرد.")
 
-        var restored = 0
-        payload.sessions.forEach { session ->
-            val local = db.chatDao().getSessionById(session.id)
-            if (!BackupFormat.backupWins(local?.updatedAt, session.updatedAt)) return@forEach
+        val localUpdatedAt = db.chatDao().getAllSessions().first().associate { it.id to it.updatedAt }
+        val toWrite = planRestore(payload) { id -> localUpdatedAt[id] }
+        toWrite.forEach { session ->
             db.chatDao().saveFullSession(session, payload.messages.filter { it.sessionId == session.id })
             payload.distillations.filter { it.sessionId == session.id }
                 .forEach { db.distillationDao().insertDistillation(it) }
-            restored++
         }
+        val restored = toWrite.size
         // Export records are history, not conversation: a row that already exists stays as it is.
         payload.exportRecords.forEach { record -> runCatching { db.exportDao().insertExportRecord(record) } }
 
