@@ -82,15 +82,14 @@ enum class AppScreen(
     val selectedIcon: ImageVector,
     val unselectedIcon: ImageVector,
     val testTag: String,
-    val stepIndex: Int? = null,
-    val stepLabel: String? = null
+    val stepIndex: Int? = null
 ) {
-    IMPORT("ورود داده", "Ingestion", Icons.AutoMirrored.Filled.Input, Icons.AutoMirrored.Outlined.Input, "tab_import", 1, "گام ۱: ورود"),
-    WORKSPACE("محیط کار", "Workspace", Icons.AutoMirrored.Filled.Chat, Icons.AutoMirrored.Outlined.Chat, "tab_workspace", 2, "گام ۲: کارگاه"),
-    DISTILL("پالایش هوشمند", "AI Distill", Icons.Filled.AutoAwesome, Icons.Outlined.AutoAwesome, "tab_distill", 3, "گام ۳: پالایش"),
-    EXPORT("صدور اسناد", "Export", Icons.Filled.FileDownload, Icons.Outlined.FileDownload, "tab_export", 4, "گام ۴: صدور"),
-    LIBRARY("کتابخانه", "Library", Icons.Filled.Folder, Icons.Outlined.Folder, "tab_library", null, null),
-    SETTINGS("تنظیمات", "Settings", Icons.Filled.Settings, Icons.Outlined.Settings, "tab_settings", null, null)
+    IMPORT("ورود داده", "Ingestion", Icons.AutoMirrored.Filled.Input, Icons.AutoMirrored.Outlined.Input, "tab_import", 1),
+    WORKSPACE("محیط کار", "Workspace", Icons.AutoMirrored.Filled.Chat, Icons.AutoMirrored.Outlined.Chat, "tab_workspace", 2),
+    DISTILL("پالایش هوشمند", "AI Distill", Icons.Filled.AutoAwesome, Icons.Outlined.AutoAwesome, "tab_distill", 3),
+    EXPORT("صدور اسناد", "Export", Icons.Filled.FileDownload, Icons.Outlined.FileDownload, "tab_export", 4),
+    LIBRARY("کتابخانه", "Library", Icons.Filled.Folder, Icons.Outlined.Folder, "tab_library", null),
+    SETTINGS("تنظیمات", "Settings", Icons.Filled.Settings, Icons.Outlined.Settings, "tab_settings", null)
 }
 
 /**

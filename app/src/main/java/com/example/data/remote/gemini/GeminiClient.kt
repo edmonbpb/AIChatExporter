@@ -356,7 +356,7 @@ $currentContent
             DistillationType.FULL_EDITED -> buildString {
                 appendLine("# 📄 مستند رسمی ویراستاری‌شده: ${session.title}")
                 appendLine("**پلتفرم مبدأ:** ${session.platform.displayName} | **مدل:** ${session.modelName} | **تاریخ:** $dateStr")
-                appendLine("**تعداد پیام‌ها:** ${localDigits(session.messages.size)} | **کلمات کلیدی:** ${session.tags.joinToString(", ")}")
+                appendLine("**تعداد پیام‌ها:** ${(session.messages.size)} | **کلمات کلیدی:** ${session.tags.joinToString(", ")}")
                 appendLine("\n---\n")
 
                 session.messages.forEachIndexed { idx, msg ->
@@ -381,9 +381,9 @@ $currentContent
                     if (msg.role.name == "USER") {
                         lastUser = msg.content
                     } else if (lastUser != null) {
-                        appendLine("### ❓ سوال ${localDigits(qaCount)}: ${lastUser?.take(120)}...")
+                        appendLine("### ❓ سوال ${(qaCount)}: ${lastUser?.take(120)}...")
                         appendLine("- **پاسخ کلیدی:** ${BidiEngine.normalizePersianTypography(msg.content.take(350))}...")
-                        appendLine("- **تعداد خطوط پاسخ کامل:** ${localDigits(msg.content.lines().size)} خط")
+                        appendLine("- **تعداد خطوط پاسخ کامل:** ${(msg.content.lines().size)} خط")
                         appendLine("\n---\n")
                         qaCount++
                         lastUser = null
@@ -395,17 +395,17 @@ $currentContent
                 appendLine("# 💻 استخراج خالص کدها و ماژول‌های نرم‌افزاری")
                 appendLine("## پروژه: ${session.title}\n")
 
-                // A number a Persian reader is spoken to goes through `localDigits`; the suggested file
-                // name `Snippet_N.lang` keeps latin digits on purpose, because a name the user may type
-                // is not a count said to them.
+                // Counts are written in plain ASCII here on purpose: this text is STORED and later
+                // exported, and the digit script belongs to whoever reads it (the screen's switch or
+                // the document's), never to the stored string.
                 var snippetCount = 0
                 session.messages.forEachIndexed { msgIdx, msg ->
                     msg.codeSnippets.forEachIndexed { codeIdx, code ->
                         snippetCount++
-                        appendLine("### 📦 فایل #${localDigits(snippetCount)}: Snippet_${snippetCount}.${code.language}")
+                        appendLine("### 📦 فایل #${(snippetCount)}: Snippet_${snippetCount}.${code.language}")
                         appendLine("- **زبان:** ${code.language.uppercase()}")
-                        appendLine("- **تعداد خطوط:** ${localDigits(code.lineCount)} خط")
-                        appendLine("- **موقعیت:** پیام شماره ${localDigits(msgIdx + 1)} (${msg.role.name})")
+                        appendLine("- **تعداد خطوط:** ${(code.lineCount)} خط")
+                        appendLine("- **موقعیت:** پیام شماره ${(msgIdx + 1)} (${msg.role.name})")
                         appendLine("\n```${code.language}")
                         appendLine(code.code)
                         appendLine("```\n")
@@ -493,8 +493,6 @@ private val LOCAL_SENTENCE_END = Regex("[.!?\\u061F\\u06D4\n]+")
 private val LOCAL_LINE_LEAD = Regex("^[\\s>#*\\-\\u2022\\d.\\u06F0-\\u06F9)]+")
 
 /** Persian digits for the user, from the one helper the project already has. */
-private fun localDigits(value: Int): String = BidiEngine.toPersianDigits(value.toString())
-
 /** One line of prose without the markdown decoration that wrapped it. */
 private fun plainClause(raw: String): String {
     val stripped = LOCAL_LINE_LEAD.replace(raw, "")
@@ -605,33 +603,33 @@ internal fun buildLocalExecutiveSummary(session: ChatSession, dateStr: String): 
     }
 
     val roleLine = buildString {
-        append("- پرسش‌های کاربر: ${localDigits(metrics.userTurns)}")
-        append(" | پاسخ‌های دستیار: ${localDigits(metrics.assistantTurns)}")
-        if (metrics.systemTurns > 0) append(" | پیام‌های سیستم: ${localDigits(metrics.systemTurns)}")
+        append("- پرسش‌های کاربر: ${(metrics.userTurns)}")
+        append(" | پاسخ‌های دستیار: ${(metrics.assistantTurns)}")
+        if (metrics.systemTurns > 0) append(" | پیام‌های سیستم: ${(metrics.systemTurns)}")
     }
 
     val codeLine = if (metrics.codeBlockCount > 0) {
         val languages = metrics.codeLanguages.joinToString(", ")
-        "- بلوک‌های کد استخراج‌شده: ${localDigits(metrics.codeBlockCount)} قطعه" +
+        "- بلوک‌های کد استخراج‌شده: ${(metrics.codeBlockCount)} قطعه" +
                 (if (languages.isNotBlank()) " ($languages)" else "")
     } else {
         "- در متن هیچ بلوک کد استانداردی (با سه بک‌تیک) شناسایی نشد"
     }
 
     val termLine = if (metrics.topTerms.isNotEmpty()) {
-        "- کلمات پرتکرار متن: " + metrics.topTerms.joinToString("، ") { "${it.first} (${localDigits(it.second)})" }
+        "- کلمات پرتکرار متن: " + metrics.topTerms.joinToString("، ") { "${it.first} (${(it.second)})" }
     } else {
         "- در متن هیچ کلمهٔ فارسیِ پرتکراری یافت نشد"
     }
 
     val steps = mutableListOf<String>()
     if (metrics.codeBlockCount > 0) {
-        steps.add("بازبینی ${localDigits(metrics.codeBlockCount)} قطعه کد استخراج‌شده")
+        steps.add("بازبینی ${(metrics.codeBlockCount)} قطعه کد استخراج‌شده")
     } else {
         steps.add("این گفتگو قطعه کدی ندارد؛ کد را در ادامهٔ گفتگو بیفزایید")
     }
     if (points.isNotEmpty()) {
-        steps.add("مرور ${localDigits(points.size)} نکته‌ای که از همین متن استخراج شد")
+        steps.add("مرور ${(points.size)} نکته‌ای که از همین متن استخراج شد")
     } else {
         steps.add("نکتهٔ فهرست‌شده‌ای در متن نبود؛ خواستهٔ خود را در «دستور سفارشی» بنویسید")
     }
@@ -647,11 +645,11 @@ internal fun buildLocalExecutiveSummary(session: ChatSession, dateStr: String): 
             appendLine("*(در متن هیچ پیام کاربر پیدا نشد؛ عنوان گفتگو نشان داده شد)*")
         } else if (opening.length > LOCAL_EXCERPT_LIMIT) {
             appendLine(
-                "*(نخستین پیام کاربر بریده شد: نمایش ${localDigits(LOCAL_EXCERPT_LIMIT)} از " +
-                        "${localDigits(opening.length)} کاراکتر)*"
+                "*(نخستین پیام کاربر بریده شد: نمایش ${(LOCAL_EXCERPT_LIMIT)} از " +
+                        "${(opening.length)} کاراکتر)*"
             )
         } else {
-            appendLine("*(نخستین پیام کاربر: ${localDigits(opening.length)} کاراکتر)*")
+            appendLine("*(نخستین پیام کاربر: ${(opening.length)} کاراکتر)*")
         }
 
         appendLine("\n## ۲. مهم‌ترین نکات گفتگو (استخراج‌شده از متن)")
@@ -665,23 +663,23 @@ internal fun buildLocalExecutiveSummary(session: ChatSession, dateStr: String): 
         }
 
         appendLine("\n## ۳. آمار و مشخصات فنی")
-        appendLine("- کل پیام‌های رد و بدل شده: ${localDigits(metrics.turnCount)}")
+        appendLine("- کل پیام‌های رد و بدل شده: ${(metrics.turnCount)}")
         appendLine(roleLine)
         appendLine(
-            "- تعداد کلمات متن: ${localDigits(metrics.totalWords)} | کلمات مستقل: " +
-                    "${localDigits(metrics.distinctWords)} | چگالی واژگان: ${localDigits(metrics.vocabularyDensityPercent)}٪"
+            "- تعداد کلمات متن: ${(metrics.totalWords)} | کلمات مستقل: " +
+                    "${(metrics.distinctWords)} | چگالی واژگان: ${(metrics.vocabularyDensityPercent)}٪"
         )
         appendLine(codeLine)
         appendLine(termLine)
-        appendLine("- تخمین توکن‌های مصرفی: ${localDigits(session.tokenEstimate)} توکن")
+        appendLine("- تخمین توکن‌های مصرفی: ${(session.tokenEstimate)} توکن")
         appendLine(
             "- خطوط شماره‌دار یا بولت‌شده در متن: " +
-                    localDigits(metrics.bulletLineCount + metrics.numberedLineCount)
+                    (metrics.bulletLineCount + metrics.numberedLineCount)
         )
 
         appendLine("\n## ۴. گام‌های اجرایی پیشنهادی (Next Steps)")
         steps.forEachIndexed { index, step ->
-            appendLine("${localDigits(index + 1)}. $step")
+            appendLine("${(index + 1)}. $step")
         }
     }
 }
@@ -754,15 +752,15 @@ internal fun buildLocalTechnicalDoc(session: ChatSession, dateStr: String): Stri
 
         appendLine("## ۱. نمای کلی سیستم و معماری")
         appendLine(
-            "این مستند از گفتگوی پلتفرم ${session.platform.displayName} در ${localDigits(metrics.turnCount)} نوبت " +
-                    "و ${localDigits(metrics.totalWords)} واژه ساخته شده و تنها آنچه در همین متن هست را نشان می‌دهد."
+            "این مستند از گفتگوی پلتفرم ${session.platform.displayName} در ${(metrics.turnCount)} نوبت " +
+                    "و ${(metrics.totalWords)} واژه ساخته شده و تنها آنچه در همین متن هست را نشان می‌دهد."
         )
 
         appendLine("\n## ۲. قطعات کد و پیاده‌سازی فنی")
         var codeIdx = 1
         session.messages.forEach { msg ->
             msg.codeSnippets.forEach { snippet ->
-                appendLine("### قطعه کد ${localDigits(codeIdx)} (${snippet.language}):")
+                appendLine("### قطعه کد ${(codeIdx)} (${snippet.language}):")
                 appendLine("```${snippet.language}")
                 appendLine(snippet.code)
                 appendLine("```\n")

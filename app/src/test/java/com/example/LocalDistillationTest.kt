@@ -30,7 +30,7 @@ import org.junit.Test
  * conversation anybody imported. These tests pin the opposite claim: the numbers, the terms and the
  * listed points of the report have to come out of the text of THIS session. Every assertion about a
  * count is written with latin digits; the Persian digits only appear inside strings the builder itself
- * produced through `BidiEngine.toPersianDigits`.
+ * produced through plain ASCII digits.
  *
  * The same rule is pinned for the two offline documents that were still invented rather than measured
  * — the technical document's release number and its security section, and the repair document's
@@ -155,13 +155,13 @@ class LocalDistillationTest {
 
         // The same counts are what the reader sees, in Persian digits, one line at a time.
         val styledReport = buildLocalExecutiveSummary(styled, sameDate)
-        assertTrue(styledReport.contains("کل پیام‌های رد و بدل شده: " + BidiEngine.toPersianDigits("3")))
-        assertTrue(styledReport.contains("پرسش‌های کاربر: " + BidiEngine.toPersianDigits("1")))
-        assertTrue(styledReport.contains("پاسخ‌های دستیار: " + BidiEngine.toPersianDigits("2")))
+        assertTrue(styledReport.contains("کل پیام‌های رد و بدل شده: " + "3"))
+        assertTrue(styledReport.contains("پرسش‌های کاربر: " + "1"))
+        assertTrue(styledReport.contains("پاسخ‌های دستیار: " + "2"))
 
         val plainReport = buildLocalExecutiveSummary(plain, sameDate)
-        assertTrue(plainReport.contains("پرسش‌های کاربر: " + BidiEngine.toPersianDigits("2")))
-        assertTrue(plainReport.contains("پاسخ‌های دستیار: " + BidiEngine.toPersianDigits("1")))
+        assertTrue(plainReport.contains("پرسش‌های کاربر: " + "2"))
+        assertTrue(plainReport.contains("پاسخ‌های دستیار: " + "1"))
     }
 
     @Test
@@ -175,7 +175,7 @@ class LocalDistillationTest {
         assertTrue(plainMetrics.codeLanguages.isEmpty())
 
         val styledReport = buildLocalExecutiveSummary(styled, sameDate)
-        assertTrue(styledReport.contains("بلوک‌های کد استخراج‌شده: " + BidiEngine.toPersianDigits("2") + " قطعه"))
+        assertTrue(styledReport.contains("بلوک‌های کد استخراج‌شده: " + "2" + " قطعه"))
         assertTrue(styledReport.contains("kotlin"))
         assertTrue(styledReport.contains("zsh"))
 
@@ -211,9 +211,9 @@ class LocalDistillationTest {
         )
 
         val styledReport = buildLocalExecutiveSummary(styled, sameDate)
-        assertTrue(styledReport.contains("تایپوگرافی (" + BidiEngine.toPersianDigits("4") + ")"))
+        assertTrue(styledReport.contains("تایپوگرافی (" + "4" + ")"))
         val plainReport = buildLocalExecutiveSummary(plain, sameDate)
-        assertTrue(plainReport.contains("سیب (" + BidiEngine.toPersianDigits("3") + ")"))
+        assertTrue(plainReport.contains("سیب (" + "3" + ")"))
     }
 
     @Test
@@ -246,10 +246,10 @@ class LocalDistillationTest {
         )
         assertEquals(0, measureLocalConversation(plain).let { it.bulletLines.size + it.numberedLines.size })
         assertTrue(
-            styledReport.contains("خطوط شماره‌دار یا بولت‌شده در متن: " + BidiEngine.toPersianDigits("3"))
+            styledReport.contains("خطوط شماره‌دار یا بولت‌شده در متن: " + "3")
         )
         assertTrue(
-            plainReport.contains("خطوط شماره‌دار یا بولت‌شده در متن: " + BidiEngine.toPersianDigits("0"))
+            plainReport.contains("خطوط شماره‌دار یا بولت‌شده در متن: " + "0")
         )
     }
 
@@ -362,11 +362,11 @@ class LocalDistillationTest {
         val report = buildLocalExecutiveSummary(listHeavy, sameDate)
         assertTrue(
             "the statistic should read all eight lines of the text, was:\n$report",
-            report.contains(label + BidiEngine.toPersianDigits("8"))
+            report.contains(label + "8")
         )
         assertFalse(
             "the statistic is reporting the capped print instead of the text",
-            report.contains(label + BidiEngine.toPersianDigits("6"))
+            report.contains(label + "6")
         )
     }
 
@@ -473,7 +473,7 @@ class LocalDistillationTest {
     fun repairDocPromisesOnlyWhatTheRepairEngineProvablyDoes() {
         val doc = buildLocalRepairDoc(plain, sameDate)
         assertFalse("the perfect-preservation promise is back",
-            doc.contains(BidiEngine.toPersianDigits("100")))
+            doc.contains("100"))
         assertTrue(doc.contains("بدون افزودن سطر و بدون توضیحات اضافی"))
         assertTrue(doc.contains("رفع حروف ناخوانا، اصلاح ی/ک عربی و چیدمان BiDi"))
 
@@ -507,7 +507,7 @@ class LocalDistillationTest {
     )
 
     /**
-     * The date of an offline report is built by `BidiEngine.toPersianDigits`, which converts the latin
+     * The date of an offline report is built by plain ASCII digits, which converts the latin
      * digits and passes every other digit class through untouched. Fed by the handset's own locale the
      * formatter hands that helper digits the user's digit switch has no power over, and they are then
      * stored in the report and printed in every document made from it. Pinning `Locale.US` keeps the
