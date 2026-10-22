@@ -1,3 +1,7 @@
+**Status: beta / early development.** This is a personal, work-in-progress
+project. File formats, internal APIs, and the build may change without notice,
+and it is not ready for general use or redistribution.
+
 # AIChatExporter
 
 An Android app that turns a shared AI-chat link into a document you can keep.
