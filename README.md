@@ -1,9 +1,8 @@
 **Status: beta / early development.** This is a personal, work-in-progress
 project. File formats, internal APIs, and the build may change without notice,
 and it is not ready for general use or redistribution.
-Use it only on content you have the right to access. Any misuse — such as
-violating a service's Terms of Service or handling shared content improperly —
-is the sole responsibility of the user.
+Use only on content you have the right to access. Any misuse — violating a
+service's Terms, privacy, or the law — is solely your responsibility.
 
 # AIChatExporter
 
