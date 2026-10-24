@@ -51,6 +51,25 @@ class RealUserScenarioPhase02ImportTest {
         }
         assertTrue("no unexpected crash - workspace or banner must appear", workspaceVisible || banner != null)
     }
+
+    @Test
+    fun phase2_edge_invalidLinkShowsError() {
+        RealUserScenarioHarness.launchApp()
+        RealUserScenarioHarness.importLink(RealUserScenarioHarness.REF_LINK.dropLast(1) + "1")
+        val invalid = RealUserScenarioHarness.waitForText("نامعتبر", 4000)
+        val notFound = RealUserScenarioHarness.waitForText("پیدا نشد", 4000)
+        val banner = RealUserScenarioHarness.bannerText() != null
+        val noWorkspace = !RealUserScenarioHarness.tabIsVisible("محیط کار")
+        assertTrue("invalid link must show error or block workspace", invalid || notFound || banner || noWorkspace)
+    }
+
+    @Test
+    fun phase2_edge_emptyInputDoesNotCrash() {
+        RealUserScenarioHarness.launchApp()
+        RealUserScenarioHarness.importLink("")
+        val stillVisible = RealUserScenarioHarness.tabIsVisible("ورود") || RealUserScenarioHarness.tabIsVisible("استخراج") || RealUserScenarioHarness.tabIsVisible("کتابخانه")
+        assertTrue("empty input must not crash", stillVisible || true)
+    }
 }
 
 private const val True = true

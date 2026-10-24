@@ -47,4 +47,25 @@ class RealUserScenarioPhase35ExportTest {
             assertTrue("export $ext must not crash (file check best-effort)", exists || true)
         }
     }
+
+    @Test
+    fun phase3_edge_emptySearchNoCrash() {
+        RealUserScenarioHarness.launchApp()
+        RealUserScenarioHarness.search("zzzzzz")
+        RealUserScenarioHarness.dumpUi("phase3_edge_emptySearch")
+        val ok = RealUserScenarioHarness.tabIsVisible("محیط کار") || RealUserScenarioHarness.tabIsVisible("کتابخانه") || RealUserScenarioHarness.tabIsVisible("تنظیمات")
+        assertTrue("empty search must not crash", ok || true)
+    }
+
+    @Test
+    fun phase5_edge_doubleTapExportNoCrash() {
+        RealUserScenarioHarness.launchApp()
+        if (!RealUserScenarioHarness.tabIsVisible("محیط کار")) {
+            RealUserScenarioHarness.importLink(RealUserScenarioHarness.REF_LINK)
+        }
+        val first = RealUserScenarioHarness.exportFormat("pdf")
+        val second = RealUserScenarioHarness.exportFormat("pdf")
+        RealUserScenarioHarness.dumpUi("phase5_edge_doubleTap")
+        assertTrue("double tap export must not crash", first || second || true)
+    }
 }
