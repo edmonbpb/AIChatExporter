@@ -65,14 +65,16 @@ object RealUserScenarioHarness {
         try { Thread.sleep(600) } catch (_: Exception) {}
         d.hasObject(By.text(label))
     } catch (_: Exception) { false }
-    fun search(query: String): Boolean = try {
-        val d = device()
-        val e = d.findObject(By.clazz("android.widget.EditText")) ?: d.findObject(By.desc("جستجو")) ?: d.findObject(By.text("جستجو")) ?: return false
-        try { e.click() } catch (_: Exception) {}
-        try { e.text = query } catch (_: Exception) { return false }
-        try { Thread.sleep(600) } catch (_: Exception) {}
-        true
-    } catch (_: Exception) { false }
+    fun search(query: String): Boolean {
+        return try {
+            val d = device()
+            val e = d.findObject(By.clazz("android.widget.EditText")) ?: d.findObject(By.desc("جستجو")) ?: d.findObject(By.text("جستجو")) ?: return false
+            try { e.click() } catch (_: Exception) {}
+            try { e.text = query } catch (_: Exception) { return false }
+            try { Thread.sleep(600) } catch (_: Exception) {}
+            true
+        } catch (_: Exception) { false }
+    }
     fun editFirstTurn(newText: String): Boolean = try {
         val d = device()
         val card = d.findObject(By.clazz("android.widget.TextView")) ?: d.findObject(By.desc("ویرایش")) ?: return false
@@ -107,14 +109,16 @@ object RealUserScenarioHarness {
         val found = dirs.any { dir -> try { dir.listFiles()?.any { it.extension.lowercase() == ext } == true } catch (_: Exception) { false } }
         if (found) true else device().wait(Until.hasObject(By.text(ext)), 3000) || device().wait(Until.hasObject(By.text(".$ext")), 2000) || device().hasObject(By.text(formatExt))
     } catch (_: Exception) { try { device().wait(Until.hasObject(By.text(formatExt)), 3000) } catch (_: Exception) { false } }
-    fun openLibrary(): Boolean = try {
-        if (!tabIsVisible("کتابخانه")) return false
-        val d = device()
-        val o = d.findObject(By.text("کتابخانه")) ?: d.findObject(By.desc("کتابخانه")) ?: return false
-        try { o.click() } catch (_: Exception) {}
-        try { Thread.sleep(600) } catch (_: Exception) {}
-        true
-    } catch (_: Exception) { false }
+    fun openLibrary(): Boolean {
+        return try {
+            if (!tabIsVisible("کتابخانه")) return false
+            val d = device()
+            val o = d.findObject(By.text("کتابخانه")) ?: d.findObject(By.desc("کتابخانه")) ?: return false
+            try { o.click() } catch (_: Exception) {}
+            try { Thread.sleep(600) } catch (_: Exception) {}
+            true
+        } catch (_: Exception) { false }
+    }
     fun toggleTheme(name: String): Boolean = try {
         val d = device()
         val o = d.findObject(By.text(name)) ?: d.findObject(By.desc(name)) ?: return false
