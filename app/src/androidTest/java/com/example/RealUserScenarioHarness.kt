@@ -107,4 +107,45 @@ object RealUserScenarioHarness {
         val found = dirs.any { dir -> try { dir.listFiles()?.any { it.extension.lowercase() == ext } == true } catch (_: Exception) { false } }
         if (found) true else device().wait(Until.hasObject(By.text(ext)), 3000) || device().wait(Until.hasObject(By.text(".$ext")), 2000) || device().hasObject(By.text(formatExt))
     } catch (_: Exception) { try { device().wait(Until.hasObject(By.text(formatExt)), 3000) } catch (_: Exception) { false } }
+    fun openLibrary(): Boolean = try {
+        if (!tabIsVisible("کتابخانه")) return false
+        val d = device()
+        val o = d.findObject(By.text("کتابخانه")) ?: d.findObject(By.desc("کتابخانه")) ?: return false
+        try { o.click() } catch (_: Exception) {}
+        try { Thread.sleep(600) } catch (_: Exception) {}
+        true
+    } catch (_: Exception) { false }
+    fun toggleTheme(name: String): Boolean = try {
+        val d = device()
+        val o = d.findObject(By.text(name)) ?: d.findObject(By.desc(name)) ?: return false
+        try { o.click() } catch (_: Exception) {}
+        try { Thread.sleep(400) } catch (_: Exception) {}
+        true
+    } catch (_: Exception) { false }
+    fun setFontScale(label: String): Boolean = try {
+        val d = device()
+        val o = d.findObject(By.text(label)) ?: d.findObject(By.desc(label)) ?: return false
+        try { o.click() } catch (_: Exception) {}
+        try { Thread.sleep(400) } catch (_: Exception) {}
+        true
+    } catch (_: Exception) { false }
+    fun setFontFamily(name: String): Boolean = try {
+        val d = device()
+        val o = d.findObject(By.text(name)) ?: d.findObject(By.desc(name)) ?: return false
+        try { o.click() } catch (_: Exception) {}
+        try { Thread.sleep(400) } catch (_: Exception) {}
+        true
+    } catch (_: Exception) { false }
+    fun pressBack(): Boolean = try {
+        device().pressBack()
+        try { Thread.sleep(600) } catch (_: Exception) {}
+        true
+    } catch (_: Exception) { false }
+    fun killAndRelaunch() {
+        try { device().executeShellCommand("am force-stop $PACKAGE") } catch (_: Exception) {
+            try { Runtime.getRuntime().exec(arrayOf("sh", "-c", "am force-stop $PACKAGE")).waitFor() } catch (_: Exception) {}
+        }
+        try { Thread.sleep(800) } catch (_: Exception) {}
+        launchApp()
+    }
 }
