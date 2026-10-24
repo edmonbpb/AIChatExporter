@@ -25,7 +25,6 @@ object RealUserScenarioHarness {
             try {
                 device().executeShellCommand("uiautomator dump ${out.absolutePath}")
             } catch (_: Exception) {
-                // ignore
             }
         }
         return out
@@ -57,15 +56,40 @@ object RealUserScenarioHarness {
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
             ctx.startActivity(intent)
         } else {
-            device().pressHome()
-            device().executeShellCommand("am start -n $PACKAGE/.MainActivity")
+            device().executeShellCommand("am start -n $PACKAGE/com.example.MainActivity")
         }
+        try { Thread.sleep(2000) } catch (_: Exception) {}
     }
 
     fun isGuestMode(): Boolean =
         device().wait(Until.hasObject(By.text("مهمان")), 1500)
 
     fun importLink(link: String) {
-        // stub for R-S3: paste link and tap Extract
+        val d = device()
+        val edit = d.findObject(By.clazz("android.widget.EditText"))
+            ?: d.findObject(By.text("لینک"))
+            ?: d.findObject(By.text("https"))
+        edit?.let {
+            try { it.click() } catch (_: Exception) {}
+            try { it.text = link } catch (_: Exception) {}
+        }
+        val btn = d.findObject(By.text("استخراج"))
+            ?: d.findObject(By.text("Extract"))
+        btn?.let {
+            try { it.click() } catch (_: Exception) {}
+        }
+        waitForText("محیط کار", 15000)
+    }
+
+    fun tabIsVisible(label: String): Boolean {
+        val d = device()
+        return d.hasObject(By.text(label)) || d.hasObject(By.desc(label))
+    }
+
+    fun bannerText(): String? {
+        val d = device()
+        if (d.hasObject(By.text("کامل خوانده نشد"))) return "کامل خوانده نشد"
+        if (d.hasObject(By.text("نامعتبر"))) return "نامعتبر"
+        return null
     }
 }
