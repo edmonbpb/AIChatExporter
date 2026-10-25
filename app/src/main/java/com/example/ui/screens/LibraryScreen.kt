@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -67,6 +68,7 @@ import com.example.domain.exporter.DocumentExporter.middleEllipsize
 import com.example.domain.exporter.FileShareHelper
 import com.example.domain.parser.scrubInventedModel
 import com.example.ui.components.AdaptiveLabel
+import com.example.ui.components.AppScreen
 import com.example.ui.theme.Cyan40
 import com.example.ui.theme.Indigo40
 import com.example.ui.viewmodel.MainViewModel
@@ -82,6 +84,7 @@ fun LibraryScreen(
     val savedSessions by viewModel.savedSessions.collectAsState()
     val exportHistory by viewModel.exportHistory.collectAsState()
     val usePersianDigits by viewModel.usePersianDigits.collectAsState()
+    val activeSession by viewModel.activeSession.collectAsState()
     val context = LocalContext.current
 
     var selectedTab by remember { mutableIntStateOf(0) }
@@ -134,6 +137,74 @@ fun LibraryScreen(
                         text = "این فهرست از حافظهٔ همین دستگاه خوانده می‌شود",
                         style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFF94A3B8))
                     )
+                }
+            }
+        }
+
+        // BUG-002: a freshly imported conversation lives in activeSession, which is not the Room-backed
+        // savedSessions list yet, so the library looked empty right after an import. This notice exists
+        // only while that gap is real; saving the session puts it in savedSessions and removes the card.
+        val active = activeSession
+        if (active != null && savedSessions.none { it.id == active.id }) {
+            Spacer(modifier = Modifier.height(14.dp))
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("unsaved_session_card"),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Text(
+                        text = "گفتگوی باز",
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = active.title,
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "${shown(active.messages.size.toString())} پیام — هنوز در کتابخانه ذخیره نشده",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = { viewModel.navigateTo(AppScreen.WORKSPACE) },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(36.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 6.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.tertiary,
+                                contentColor = MaterialTheme.colorScheme.onTertiary
+                            )
+                        ) {
+                            Text(text = "ادامهٔ کار", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        Button(
+                            onClick = { viewModel.saveActiveSessionToDatabase() },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(36.dp)
+                                .testTag("unsaved_session_save"),
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 6.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            )
+                        ) {
+                            Text(text = "ذخیره در کتابخانه", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
                 }
             }
         }
@@ -288,13 +359,13 @@ fun SavedSessionCard(
                 ) {
                     Icon(
                         imageVector = if (entity.isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                        contentDescription = "Bookmark",
+                        contentDescription = "نشانه‌گذاری",
                         tint = if (entity.isBookmarked) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp)
                     )
                 }
                 IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.Delete, contentDescription = "حذف", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
                 }
             }
         }
@@ -357,13 +428,13 @@ fun ExportRecordCard(
 
             Row {
                 IconButton(onClick = onOpen, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.AutoMirrored.Filled.Launch, contentDescription = "Open", modifier = Modifier.size(16.dp))
+                    Icon(Icons.AutoMirrored.Filled.Launch, contentDescription = "باز کردن", modifier = Modifier.size(16.dp))
                 }
                 IconButton(onClick = onShare, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.Share, contentDescription = "Share", modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Share, contentDescription = "اشتراک‌گذاری", modifier = Modifier.size(16.dp))
                 }
                 IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Delete, contentDescription = "حذف", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
                 }
             }
         }

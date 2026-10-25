@@ -123,7 +123,7 @@ fun AppTopBar(
                 ) {
                     Icon(
                         imageVector = if (activeSession.isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                        contentDescription = "Bookmark",
+                        contentDescription = "نشانه‌گذاری",
                         tint = if (activeSession.isBookmarked) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -135,7 +135,7 @@ fun AppTopBar(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Save,
-                        contentDescription = "Save Session",
+                        contentDescription = "ذخیرهٔ گفتگو",
                         tint = MaterialTheme.colorScheme.primary
                     )
                 }
@@ -148,7 +148,7 @@ fun AppTopBar(
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
-                    contentDescription = "New Session",
+                    contentDescription = "گفتگوی جدید",
                     tint = MaterialTheme.colorScheme.onSurface
                 )
             }

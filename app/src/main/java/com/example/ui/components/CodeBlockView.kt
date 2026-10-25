@@ -129,7 +129,7 @@ fun CodeBlockView(
                 ) {
                     Icon(
                         imageVector = if (copied) Icons.Default.Check else Icons.Default.ContentCopy,
-                        contentDescription = "Copy Code",
+                        contentDescription = "رونوشت کد",
                         tint = if (copied) Color(0xFF10B981) else Color(0xFF94A3B8),
                         modifier = Modifier.size(16.dp)
                     )

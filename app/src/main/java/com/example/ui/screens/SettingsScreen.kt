@@ -66,6 +66,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.domain.bidi.BidiEngine
 import com.example.ui.components.AdaptiveLabel
 import com.example.data.remote.drive.DriveAuth
 import com.example.ui.theme.AppFontFamilyPreset
@@ -206,7 +207,7 @@ fun SettingsScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ExitToApp,
-                                contentDescription = "Sign Out",
+                                contentDescription = "خروج از حساب",
                                 modifier = Modifier.size(16.dp),
                                 tint = MaterialTheme.colorScheme.error
                             )
@@ -269,7 +270,7 @@ fun SettingsScreen(
                 }
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = driveStatus ?: ("آخرین پشتیبان: " + (viewModel.driveLastBackupDate() ?: "هنوز نه")),
+                    text = driveStatus ?: ("آخرین پشتیبان: " + (viewModel.driveLastBackupDate()?.let { if (usePersianDigits) BidiEngine.toPersianDigits(it) else it } ?: "هنوز نه")),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.testTag("drive_status")
@@ -328,7 +329,7 @@ fun SettingsScreen(
                                 )
                             }
                             if (isSelected) {
-                                Icon(Icons.Default.Check, contentDescription = "Selected", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.Check, contentDescription = "انتخاب‌شده", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
                             }
                         }
                     }

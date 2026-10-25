@@ -8,9 +8,17 @@ Build: `1.0` debug, commit `349e197` + local test edits
 
 | ID | Phase | Severity | Type | Module | Title | Repeat | Status |
 |---|---|---|---|---|---|---|---|
-| BUG-001 | 3 / 6 / 7 | S3 | a11y | General | English accessibility labels inside a Persian-only UI | always | open |
-| BUG-002 | 6 | S3 | Function | Library | Imported conversation is missing from the library right after a successful import | always | open |
-| BUG-003 | 7 | S4 | Look | Settings | Backup date uses Latin digits while the rest of the app uses Persian digits | always | open |
+| BUG-001 | 3 / 6 / 7 | S3 | a11y | General | English accessibility labels inside a Persian-only UI | always | fixed 2026-10-26 |
+| BUG-002 | 6 | S3 | Function | Library | Imported conversation is missing from the library right after a successful import | always | fixed 2026-10-26 |
+| BUG-003 | 7 | S4 | Look | Settings | Backup date uses Latin digits while the rest of the app uses Persian digits | always | fixed 2026-10-26 |
+
+## Fix evidence (2026-10-26)
+
+- **BUG-001** — all eight UI files now carry Persian `contentDescription` values. On the phone, `grep 'content-desc="[A-Za-z]'` over `docs/reports/raw/_fix1_start.xml` and `_fix3m_digits_on.xml` returns nothing, and the Persian labels `جستجو`, `حذف`, `ذخیره در کتابخانه`, `ذخیرهٔ گفتگو`, `رونوشت`, `نشانه‌گذاری` appear in the hierarchy.
+- **BUG-002** — with the 40-turn draft still on disk, the library shows the card: `_fix2_library.xml` holds «گفتگوی باز», «۴۰ پیام — هنوز در کتابخانه ذخیره نشده» and both buttons. Tapping «ذخیره در کتابخانه» produced `_fix2_after_save.xml`: the card is gone and the counter moved from «گفتگوها (۲)» to «گفتگوها (۳)».
+- **BUG-003** — the line now follows the app's own digits switch: with the switch on, `_fix3m_digits_on.xml` reads «آخرین پشتیبان: ۲۰۲۶-۱۰-۲۵»; switched off, `_fix3h_digits_off.xml` reads «آخرین پشتیبان: 2026-10-25». The switch was returned to its original on state afterwards.
+- **Reviewer follow-ups applied** — the two card buttons got `overflow = TextOverflow.Ellipsis` so «ذخیره در کتابخانه» cannot be cut mid-glyph on a narrow panel at 130% font, and the backup date conversion is now conditional on the user's switch instead of always on.
+- **Checks that ran** — `:app:assembleDebug` green, `:app:testDebugUnitTest` green, APK reinstalled on `R58X30GS9QJ` and all device evidence above captured after that install.
 
 ## Verified working (not bugs)
 

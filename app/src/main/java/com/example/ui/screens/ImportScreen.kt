@@ -339,7 +339,7 @@ fun ImportScreen(
                                         focusManager.clearFocus()
                                         viewModel.sharedUrlInput.value = ""
                                     }) {
-                                        Icon(Icons.Default.Delete, contentDescription = "Clear", tint = MaterialTheme.colorScheme.error)
+                                        Icon(Icons.Default.Delete, contentDescription = "پاک کردن", tint = MaterialTheme.colorScheme.error)
                                     }
                                 }
                             },
@@ -697,7 +697,7 @@ fun ImportScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Delete,
-                                contentDescription = "Clear Text",
+                                contentDescription = "پاک‌کردن متن",
                                 tint = MaterialTheme.colorScheme.error,
                                 modifier = Modifier.size(18.dp)
                             )

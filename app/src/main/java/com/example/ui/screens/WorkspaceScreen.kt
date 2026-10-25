@@ -189,7 +189,7 @@ fun WorkspaceScreen(
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Default.Search,
-                        contentDescription = "Search",
+                        contentDescription = "جستجو",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 },
@@ -199,7 +199,7 @@ fun WorkspaceScreen(
                             focusManager.clearFocus()
                             viewModel.searchQuery.value = ""
                         }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Clear Search", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Icon(Icons.Default.Delete, contentDescription = "پاک‌کردن جستجو", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 },
@@ -366,7 +366,7 @@ fun WorkspaceScreen(
             ) {
                 Icon(
                     imageVector = Icons.Default.Save,
-                    contentDescription = "Save DB",
+                    contentDescription = "ذخیره در کتابخانه",
                     tint = MaterialTheme.colorScheme.primary
                 )
             }
@@ -485,13 +485,13 @@ fun MessageTurnCard(
                 // Turn actions
                 Row {
                     IconButton(onClick = onCopy, modifier = Modifier.size(28.dp)) {
-                        Icon(Icons.Default.ContentCopy, contentDescription = "Copy", modifier = Modifier.size(15.dp))
+                        Icon(Icons.Default.ContentCopy, contentDescription = "رونوشت", modifier = Modifier.size(15.dp))
                     }
                     IconButton(onClick = onEdit, modifier = Modifier.size(28.dp)) {
-                        Icon(Icons.Default.Edit, contentDescription = "Edit", modifier = Modifier.size(15.dp))
+                        Icon(Icons.Default.Edit, contentDescription = "ویرایش", modifier = Modifier.size(15.dp))
                     }
                     IconButton(onClick = onDelete, modifier = Modifier.size(28.dp)) {
-                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(15.dp))
+                        Icon(Icons.Default.Delete, contentDescription = "حذف", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(15.dp))
                     }
                 }
             }

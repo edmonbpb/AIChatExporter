@@ -329,7 +329,7 @@ fun AuthScreen(
                             IconButton(onClick = { passwordVisible = !passwordVisible }) {
                                 Icon(
                                     imageVector = if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                    contentDescription = "Toggle Password"
+                                    contentDescription = "نمایش یا پنهان‌کردن گذرواژه"
                                 )
                             }
                         },

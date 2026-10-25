@@ -414,7 +414,7 @@ fun DistillationScreen(
                             ) {
                                 Icon(
                                     imageVector = if (state.isEditingManually) Icons.Default.Visibility else Icons.Default.Edit,
-                                    contentDescription = "Edit Text",
+                                    contentDescription = "ویرایش متن",
                                     tint = if (state.isEditingManually) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.size(16.dp)
                                 )
@@ -433,7 +433,7 @@ fun DistillationScreen(
                             ) {
                                 Icon(
                                     imageVector = if (copied) Icons.Default.Check else Icons.Default.ContentCopy,
-                                    contentDescription = "Copy",
+                                    contentDescription = "رونوشت",
                                     tint = if (copied) Color(0xFF10B981) else MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.size(16.dp)
                                 )
@@ -445,7 +445,7 @@ fun DistillationScreen(
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Refresh,
-                                    contentDescription = "Regenerate",
+                                    contentDescription = "تولید دوباره",
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.size(16.dp)
                                 )
@@ -617,7 +617,7 @@ fun DistillationScreen(
                                 strokeWidth = 2.dp
                             )
                         } else {
-                            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", tint = Color.White, modifier = Modifier.size(20.dp))
+                            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "ارسال", tint = Color.White, modifier = Modifier.size(20.dp))
                         }
                     }
                 }
