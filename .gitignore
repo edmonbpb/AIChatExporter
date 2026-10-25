@@ -27,6 +27,8 @@ debug.keystore
 /metadata.json
 # archived evidence that contains real conversation text or screenshots of it
 /docs/reports/raw/
+# working plans stay local; only the agreed spec is published
+/docs/superpowers/plans/
 /docs/reports/agy/*.xml
 /docs/reports/agy/*.png
 /docs/reports/agy/*.pdf
