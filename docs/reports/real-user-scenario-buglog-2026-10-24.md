@@ -18,6 +18,8 @@ Build: `1.0` debug, commit `349e197` + local test edits
 - **BUG-002** — with the 40-turn draft still on disk, the library shows the card: `_fix2_library.xml` holds «گفتگوی باز», «۴۰ پیام — هنوز در کتابخانه ذخیره نشده» and both buttons. Tapping «ذخیره در کتابخانه» produced `_fix2_after_save.xml`: the card is gone and the counter moved from «گفتگوها (۲)» to «گفتگوها (۳)».
 - **BUG-003** — the line now follows the app's own digits switch: with the switch on, `_fix3m_digits_on.xml` reads «آخرین پشتیبان: ۲۰۲۶-۱۰-۲۵»; switched off, `_fix3h_digits_off.xml` reads «آخرین پشتیبان: 2026-10-25». The switch was returned to its original on state afterwards.
 - **Reviewer follow-ups applied** — the two card buttons got `overflow = TextOverflow.Ellipsis` so «ذخیره در کتابخانه» cannot be cut mid-glyph on a narrow panel at 130% font, and the backup date conversion is now conditional on the user's switch instead of always on.
+- **Zero-turn guard** — the card now also requires `messages.isNotEmpty()`, so an empty session cannot raise a «۰ پیام» notice. Re-checked on the phone after the guard: a fresh import of the reference link produced 40 messages, the library showed «گفتگوی باز» with «۴۰ پیام — هنوز در کتابخانه ذخیره نشده», and the saved counter stayed at «گفتگوها (۳)» because that session is still unsaved (`_guard_library2.xml`).
+- **Regression round** — after all of the above, the three scenario classes ran green again on the phone (6 + 5 + 6 tests) and the hierarchy still contains zero Latin-initial `content-desc` values.
 - **Checks that ran** — `:app:assembleDebug` green, `:app:testDebugUnitTest` green, APK reinstalled on `R58X30GS9QJ` and all device evidence above captured after that install.
 
 ## Verified working (not bugs)

@@ -145,7 +145,7 @@ fun LibraryScreen(
         // savedSessions list yet, so the library looked empty right after an import. This notice exists
         // only while that gap is real; saving the session puts it in savedSessions and removes the card.
         val active = activeSession
-        if (active != null && savedSessions.none { it.id == active.id }) {
+        if (active != null && active.messages.isNotEmpty() && savedSessions.none { it.id == active.id }) {
             Spacer(modifier = Modifier.height(14.dp))
             Card(
                 modifier = Modifier
