@@ -1,6 +1,6 @@
 # سیاست حریم خصوصی AIChatExporter
 
-آخرین به‌روزرسانی: ۲۱ اکتبر ۲۰۲۶ — نسخهٔ ۱.۰
+آخرین به‌روزرسانی: ۲۸ اکتبر ۲۰۲۶ — نسخهٔ ۱.۱
 
 این سند توضیح می‌دهد برنامهٔ اندرویدی **AIChatExporter** (شناسهٔ بستهٔ `com.aistudio.aichatexporter.kxrtva`) چه اطلاعاتی را ذخیره می‌کند، چه اطلاعاتی را از دستگاه بیرون می‌فرستد، و برای هر مورد چه کنترلی در اختیار شماست. این برنامه برای تبدیل گفتگوهای هوش مصنوعی به سند (Word، PowerPoint، PDF، HTML، Markdown، متن و JSON) ساخته شده است.
 
@@ -27,6 +27,19 @@
 3. **پالایش هوشمند آنلاین.** اگر پالایش را با مدل آنلاین انجام دهید، متن گفتگو به `generativelanguage.googleapis.com` (سرویس Gemini گوگل) فرستاده می‌شود تا خلاصه ساخته شود. حالت پالایش آفلاین هیچ چیزی ارسال نمی‌کند.
 4. **پشتیبان‌گیری در گوگل درایو.** اگر خودتان اجازه بدهید، برنامه یک فایل JSON از کتابخانهٔ شما را در پوشهٔ `AIChatExporter/` در درایوِ همان حساب می‌نویسد. این دسترسی فقط به فایل‌هایی است که خودِ این برنامه ساخته یا باز کرده است (`drive.file`) و به بقیهٔ درایو شما دسترسی ندارد. بازگردانی هم فقط از همان فایل‌ها انجام می‌شود. حداکثر یک پشتیبان خودکار در هر روز که برنامه را باز کنید ساخته می‌شود و هر زمان می‌توانید آن را از تنظیمات خاموش‌نگه‌دارید (اتصال را از حساب گوگل بردارید) یا پشتیبان‌گیری دستی انجام دهید.
 5. **ورود با گوگل.** اگر با حساب گوگل وارد شوید، برنامه از سرویس حساب گوگل یک نشانهٔ شناسایی می‌گیرد تا نام و ایمیل شما را برای نمایش نگه دارد. هیچ داده‌ای از برنامه به سرور ما نمی‌رود، چون سروری وجود ندارد.
+
+### ۲.۱ سرویس‌هایی که ممکن است داده ببینند
+
+هر مورد بالا به یک سرویس بیرونی می‌رسد که سیاست حریم خصوصی خودش را دارد. ما هیچ‌کدام از این سرویس‌ها را نمی‌گردانیم و کنترلی روی داده‌ای که دریافت می‌کنند نداریم.
+
+| سرویس | چه چیزی می‌بیند | چه زمانی | سیاست خودش |
+|---|---|---|---|
+| ChatGPT (OpenAI) | نشانی صفحهٔ اشتراک‌گذاری و درخواست خواندن آن | وقتی لینک ChatGPT را وارد می‌کنید | `openai.com/policies/privacy-policy` |
+| Claude (Anthropic) | نشانی صفحهٔ اشتراک‌گذاری و درخواست خواندن آن | وقتی لینک Claude را وارد می‌کنید | `anthropic.com/legal/privacy` |
+| Google (Gemini API) | متن گفتگویی که پالایش آنلاین می‌کنید | فقط وقتی پالایش آنلاین را خودتان اجرا کنید | `policies.google.com/privacy` |
+| Google (حساب و درایو) | نام، ایمیل و فایل پشتیبانی که برنامه می‌سازد | فقط وقتی با گوگل وارد شوید یا پشتیبان بگیرید | `policies.google.com/privacy` |
+| r.jina.ai | نشانی لینک، همراه با کلیدی که خودتان وارد کرده‌اید | فقط اگر کلید موتور خواندن را پر کرده باشید | سیاست خودِ همان سرویس |
+| api.allorigins.win | نشانی لینک، وقتی سرویس مبدا دسترسی مستقیم را ببندد | فقط در همان درخواست جایگزین | سیاست خودِ همان سرویس |
 
 ## ۳. چه کارهایی انجام نمی‌دهیم
 
@@ -60,24 +73,24 @@
 
 ## ۸. تغییرات این سیاست
 
-اگر رفتار برنامه در آینده تغییر کند، این سند پیش از انتشار آن نسخه به‌روزرسانی می‌شود و تاریخ بالای صفحه تغییر می‌کند.
+اگر رفتار برنامه در آینده تغییر کند، این سند پیش از انتشار آن نسخه به‌روزرسانی می‌شود و تاریخ و شمارهٔ نسخهٔ بالای صفحه تغییر می‌کند.
 
-## ۹. تماس
+## ۹. استفادهٔ مجاز و مسئولیت شما
+
+از برنامه فقط روی محتوایی استفاده کنید که حق دسترسی به آن را دارید. هرگونه استفادهٔ غیرمجاز، نقض شرایط سرویسِ سرویسِ مبدا، نقض حریم خصوصی دیگران یا فعالیت غیرقانونی، صرفاً بر عهدهٔ خودِ شماست و توسعه‌دهنده مسئولیتی در قبال آن نمی‌پذیرد.
+
+## ۱۰. تماس
 
 برای پرسش، درخواست حذف داده یا گزارش مشکل:
 
 - رایانامه: sbedmon1@gmail.com
-- مخزن پروژه: صفحهٔ پروژهٔ AIChatExporter
-
-## ۱۰. استفادهٔ مجاز و مسئولیت شما
-
-از برنامه فقط روی محتوایی استفاده کنید که حق دسترسی به آن را دارید. هرگونه استفادهٔ غیرمجاز، نقض شرایط سرویسِ سرویسِ مبدا، نقض حریم خصوصی دیگران یا فعالیت غیرقانونی، صرفاً بر عهدهٔ خودِ شماست و توسعه‌دهنده مسئولیتی در قبال آن نمی‌پذیرد.
+- مخزن پروژه: `github.com/edmonbpb/AIChatExporter`
 
 ---
 
 # AIChatExporter Privacy Policy (English summary)
 
-Last updated: 21 October 2026 — version 1.0
+Last updated: 28 October 2026 — version 1.1
 
 AIChatExporter is an Android app that turns AI conversations into documents. **Your conversations stay on your phone by default.** There is no account on any server of ours and no analytics, advertising or crash reporting.
 
@@ -89,6 +102,10 @@ Data leaves the device only when you act:
 - if you grant it, backups write one JSON file of your library into `AIChatExporter/` in your own Google Drive, limited to files this app created (`drive.file`);
 - Google sign-in stores your name and email locally for display.
 
+Third-party services that may see data, and their own policies: OpenAI (`openai.com/policies/privacy-policy`), Anthropic (`anthropic.com/legal/privacy`), Google (`policies.google.com/privacy`), r.jina.ai and api.allorigins.win (their own policies apply). None of them is operated by us.
+
 We never sell data, never share it with third parties, and never use it to train models. You can delete everything by deleting conversations in the app, clearing app data, deleting the Drive folder, or revoking the app's access from your Google account.
+
+Use only on content you have the right to access. Any misuse — violating a service's Terms, privacy, or the law — is solely your responsibility.
 
 Contact: sbedmon1@gmail.com
