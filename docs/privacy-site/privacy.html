@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="سیاست حریم خصوصی برنامهٔ AIChatExporter: چه داده‌ای روی گوشی می‌ماند، چه زمانی بیرون می‌رود، و چه کنترلی دارید.">
+<title>سیاست حریم خصوصی AIChatExporter</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: Vazirmatn, Tahoma, system-ui, sans-serif; line-height: 1.9;
+         max-width: 52rem; margin: 0 auto; padding: 2rem 1.25rem; }
+  h1 { font-size: 1.6rem; margin: 0 0 .5rem; }
+  h2 { font-size: 1.15rem; margin: 2rem 0 .75rem; }
+  h3 { font-size: 1rem; margin: 1.5rem 0 .5rem; }
+  p, li { margin: .6rem 0; }
+  code { font-family: ui-monospace, Consolas, monospace; font-size: .92em; }
+  hr { border: 0; border-top: 1px solid #8884; margin: 2.5rem 0; }
+  .num { padding-inline-start: 1.25rem; }
+  .en { font-family: system-ui, sans-serif; }
+  .meta { color: #888; font-size: .9rem; margin: 0 0 1.5rem; }
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: .95rem; }
+  th, td { border: 1px solid #8884; padding: .5rem .6rem; text-align: start; vertical-align: top; }
+  th { background: #8881; }
+  footer { margin-top: 2.5rem; color: #888; font-size: .85rem; }
+  @media print { body { max-width: none; } table { page-break-inside: avoid; } }
+</style>
+</head>
+<body>
+<h1>سیاست حریم خصوصی AIChatExporter</h1>
+<p class="meta">آخرین به‌روزرسانی: ۲۸ اکتبر ۲۰۲۶ — نسخهٔ ۱.۱</p>
+
+<p>این سند توضیح می‌دهد برنامهٔ اندرویدی <strong>AIChatExporter</strong> (شناسهٔ بستهٔ <code>com.aistudio.aichatexporter.kxrtva</code>) چه اطلاعاتی را ذخیره می‌کند، چه اطلاعاتی را از دستگاه بیرون می‌فرستد، و برای هر مورد چه کنترلی در اختیار شماست. این برنامه برای تبدیل گفتگوهای هوش مصنوعی به سند (Word، PowerPoint، PDF، HTML، Markdown، متن و JSON) ساخته شده است.</p>
+
+<p>خلاصهٔ یک‌خطی: <strong>گفتگوهای شما به‌طور پیش‌فرض روی همین گوشی می‌مانند؛ چیزی برای ما فرستاده نمی‌شود، حساب کاربری روی سرور ما وجود ندارد، و هر ارسالِ بیرونی فقط با کارِ خودِ شما و به مقصدی مشخص انجام می‌شود.</strong></p>
+
+<h2>۱. چه اطلاعاتی روی دستگاه شما ذخیره می‌شود</h2>
+<p>همهٔ موارد زیر در حافظهٔ خصوصی برنامه روی همین گوشی ذخیره می‌شوند و در اختیار ما نیستند:</p>
+<ul>
+<li>متن گفتگوهایی که وارد یا استخراج می‌کنید، همراه با عنوان، پلتفرم، نام مدل، برچسب‌ها، یادداشت‌ها و زمان‌ها.</li>
+<li>متن پالایش‌شده و تاریخچهٔ پالایش.</li>
+<li>فهرست فایل‌های صادرشده (نام، قالب، مسیر و حجم) تا در کتابخانه نمایش داده شوند.</li>
+<li>پروفایل نمایشی حساب (نام، نشانی ایمیل، تصویر) اگر با گوگل وارد شده باشید.</li>
+<li>تنظیمات برنامه، از جمله کلید «موتور خواندن» اگر خودتان وارد کرده باشید.</li>
+</ul>
+<p>فایل‌های صادرشده در پوشهٔ Download گوشی (از طریق MediaStore) و در حافظهٔ خصوصی برنامه ذخیره می‌شوند.</p>
+
+<h2>۲. چه زمانی اطلاعات از دستگاه بیرون می‌رود</h2>
+<p>هیچ داده‌ای به‌طور خودکار به ما فرستاده نمی‌شود. ارسال فقط در این موارد و فقط با اقدام شما رخ می‌دهد:</p>
+<p class="num">1. <strong>استخراج از لینک اشتراک‌گذاری.</strong> وقتی لینک یک گفتگو (مانند ChatGPT یا Claude) را وارد می‌کنید، برنامه همان صفحه را از خودِ آن سرویس می‌خواند. اگر سرویس دسترسی مستقیم را نداد، ممکن است درخواست از طریق واسط <code>api.allorigins.win</code> انجام شود. نشانی لینک برای همان درخواست به مقصد می‌رود.</p>
+<p class="num">2. <strong>کلید «موتور خواندن» (r.jina.ai).</strong> اگر خودتان این کلید را در تنظیمات وارد کنید، برنامه برای رندر صفحهٔ جاوااسکریپتی، همان لینک را به <code>r.jina.ai</code> می‌فرستد و کلید شما در سرآمدم (هدر) درخواست قرار می‌گیرد. این کلید اختیاری است و می‌توانید خالی بگذارید.</p>
+<p class="num">3. <strong>پالایش هوشمند آنلاین.</strong> اگر پالایش را با مدل آنلاین انجام دهید، متن گفتگو به <code>generativelanguage.googleapis.com</code> (سرویس Gemini گوگل) فرستاده می‌شود تا خلاصه ساخته شود. حالت پالایش آفلاین هیچ چیزی ارسال نمی‌کند.</p>
+<p class="num">4. <strong>پشتیبان‌گیری در گوگل درایو.</strong> اگر خودتان اجازه بدهید، برنامه یک فایل JSON از کتابخانهٔ شما را در پوشهٔ <code>AIChatExporter/</code> در درایوِ همان حساب می‌نویسد. این دسترسی فقط به فایل‌هایی است که خودِ این برنامه ساخته یا باز کرده است (<code>drive.file</code>) و به بقیهٔ درایو شما دسترسی ندارد. بازگردانی هم فقط از همان فایل‌ها انجام می‌شود. حداکثر یک پشتیبان خودکار در هر روز که برنامه را باز کنید ساخته می‌شود و هر زمان می‌توانید آن را از تنظیمات خاموش‌نگه‌دارید (اتصال را از حساب گوگل بردارید) یا پشتیبان‌گیری دستی انجام دهید.</p>
+<p class="num">5. <strong>ورود با گوگل.</strong> اگر با حساب گوگل وارد شوید، برنامه از سرویس حساب گوگل یک نشانهٔ شناسایی می‌گیرد تا نام و ایمیل شما را برای نمایش نگه دارد. هیچ داده‌ای از برنامه به سرور ما نمی‌رود، چون سروری وجود ندارد.</p>
+
+<h3>۲.۱ سرویس‌هایی که ممکن است داده ببینند</h3>
+<p>هر مورد بالا به یک سرویس بیرونی می‌رسد که سیاست حریم خصوصی خودش را دارد. ما هیچ‌کدام از این سرویس‌ها را نمی‌گردانیم و کنترلی روی داده‌ای که دریافت می‌کنند نداریم.</p>
+<table>
+<thead>
+<tr><th>سرویس</th><th>چه چیزی می‌بیند</th><th>چه زمانی</th><th>سیاست خودش</th></tr>
+</thead>
+<tbody>
+<tr><td>ChatGPT (OpenAI)</td><td>نشانی صفحهٔ اشتراک‌گذاری و درخواست خواندن آن</td><td>وقتی لینک ChatGPT را وارد می‌کنید</td><td><code>openai.com/policies/privacy-policy</code></td></tr>
+<tr><td>Claude (Anthropic)</td><td>نشانی صفحهٔ اشتراک‌گذاری و درخواست خواندن آن</td><td>وقتی لینک Claude را وارد می‌کنید</td><td><code>anthropic.com/legal/privacy</code></td></tr>
+<tr><td>Google (Gemini API)</td><td>متن گفتگویی که پالایش آنلاین می‌کنید</td><td>فقط وقتی پالایش آنلاین را خودتان اجرا کنید</td><td><code>policies.google.com/privacy</code></td></tr>
+<tr><td>Google (حساب و درایو)</td><td>نام، ایمیل و فایل پشتیبانی که برنامه می‌سازد</td><td>فقط وقتی با گوگل وارد شوید یا پشتیبان بگیرید</td><td><code>policies.google.com/privacy</code></td></tr>
+<tr><td>r.jina.ai</td><td>نشانی لینک، همراه با کلیدی که خودتان وارد کرده‌اید</td><td>فقط اگر کلید موتور خواندن را پر کرده باشید</td><td>سیاست خودِ همان سرویس</td></tr>
+<tr><td>api.allorigins.win</td><td>نشانی لینک، وقتی سرویس مبدا دسترسی مستقیم را ببندد</td><td>فقط در همان درخواست جایگزین</td><td>سیاست خودِ همان سرویس</td></tr>
+</tbody>
+</table>
+
+<h2>۳. چه کارهایی انجام نمی‌دهیم</h2>
+<ul>
+<li>هیچ داده‌ای را نمی‌فروشیم و در اختیار شخص یا شرکت دیگری نمی‌گذاریم.</li>
+<li>هیچ ابزار تبلیغاتی، ردیابی رفتاری، تحلیل مصرف یا گزارش خرابیِ متصل به سرور در برنامه نیست.</li>
+<li>هیچ داده‌ای را برای آموزش مدل به کسی نمی‌دهیم.</li>
+<li>به مخاطبین، رسانه‌ها، موقعیت مکانی یا میکروفون دسترسی نمی‌خواهیم.</li>
+</ul>
+
+<h2>۴. اجازه‌هایی که برنامه می‌خواهد</h2>
+<ul>
+<li><strong>اینترنت:</strong> برای خواندن لینک اشتراک‌گذاری، پالایش آنلاین و پشتیبان‌گیری درایو.</li>
+<li><strong>نوشتن در پوشهٔ Download:</strong> برای گذاشتن نسخه‌ای از فایل صادرشده که با برنامه‌های دیگر باز شود.</li>
+<li><strong>حساب گوگل (اختیاری):</strong> برای ورود و برای دسترسی محدود به فایل‌های خودِ برنامه در درایو.</li>
+</ul>
+
+<h2>۵. نگهداری، حذف و کنترل شما</h2>
+<ul>
+<li>داده‌ها تا زمانی که خودتان پاک نکنید روی گوشی می‌مانند. حذف یک گفتگو از کتابخانه یا پاک‌کردن داده‌های برنامه در تنظیمات اندروید، آن‌ها را برای همیشه از دستگاه پاک می‌کند.</li>
+<li>فایل پشتیبان در درایوِ خودِ شماست؛ با حذف پوشهٔ <code>AIChatExporter/</code> در درایو، آن نسخه پاک می‌شود. برنامه هیچ نسخه‌ای نزد خود نگه نمی‌دارد.</li>
+<li>کلید «موتور خواندن» فقط روی دستگاه ذخیره می‌شود و با خالی‌کردن همان فیلد پاک می‌شود.</li>
+<li>برای قطع کامل دسترسی درایو، می‌توانید از صفحهٔ «برنامه‌های متصل» حساب گوگل خود، دسترسی این برنامه را بردارید.</li>
+</ul>
+
+<h2>۶. امنیت</h2>
+<ul>
+<li>ارتباط با سرویس‌های بیرونی روی HTTPS انجام می‌شود.</li>
+<li>داده‌ها در حافظهٔ خصوصی برنامه و پایگاه‌دادهٔ محلی نگه‌داری می‌شوند؛ برنامه از قفل صفحه و رمزنگاری خودِ اندروید برای حفاظت دستگاه بهره می‌برد.</li>
+<li>هیچ رمز عبور گوگل یا کلید خصوصی‌ای در برنامه ذخیره نمی‌شود.</li>
+</ul>
+
+<h2>۷. کودکان</h2>
+<p>این برنامه برای استفادهٔ عمومی ساخته شده و آگاهانه اطلاعاتی از کودکان زیر ۱۳ سال جمع‌آوری نمی‌کند؛ چون هیچ اطلاعاتی برای ما جمع‌آوری نمی‌شود.</p>
+
+<h2>۸. تغییرات این سیاست</h2>
+<p>اگر رفتار برنامه در آینده تغییر کند، این سند پیش از انتشار آن نسخه به‌روزرسانی می‌شود و تاریخ و شمارهٔ نسخهٔ بالای صفحه تغییر می‌کند.</p>
+
+<h2>۹. استفادهٔ مجاز و مسئولیت شما</h2>
+<p>از برنامه فقط روی محتوایی استفاده کنید که حق دسترسی به آن را دارید. هرگونه استفادهٔ غیرمجاز، نقض شرایط سرویسِ سرویسِ مبدا، نقض حریم خصوصی دیگران یا فعالیت غیرقانونی، صرفاً بر عهدهٔ خودِ شماست و توسعه‌دهنده مسئولیتی در قبال آن نمی‌پذیرد.</p>
+
+<h2>۱۰. تماس</h2>
+<p>برای پرسش، درخواست حذف داده یا گزارش مشکل:</p>
+<ul>
+<li>رایانامه: sbedmon1@gmail.com</li>
+<li>مخزن پروژه: <code>github.com/edmonbpb/AIChatExporter</code></li>
+</ul>
+
+<hr>
+<section class="en" dir="ltr">
+<h2>AIChatExporter Privacy Policy (English summary)</h2>
+<p>Last updated: 28 October 2026 — version 1.1</p>
+<p>AIChatExporter is an Android app that turns AI conversations into documents. <strong>Your conversations stay on your phone by default.</strong> There is no account on any server of ours and no analytics, advertising or crash reporting.</p>
+<p>Data leaves the device only when you act:</p>
+<ul>
+<li>importing a shared link fetches that page (directly, or through <code>api.allorigins.win</code> when the site blocks direct access);</li>
+<li>if you set an optional reader-engine key, the link is sent to <code>r.jina.ai</code> with that key;</li>
+<li>online AI distillation sends the conversation text to Google&#x27;s Gemini API; offline distillation sends nothing;</li>
+<li>if you grant it, backups write one JSON file of your library into <code>AIChatExporter/</code> in your own Google Drive, limited to files this app created (<code>drive.file</code>);</li>
+<li>Google sign-in stores your name and email locally for display.</li>
+</ul>
+<p>Third-party services that may see data, and their own policies: OpenAI (<code>openai.com/policies/privacy-policy</code>), Anthropic (<code>anthropic.com/legal/privacy</code>), Google (<code>policies.google.com/privacy</code>), r.jina.ai and api.allorigins.win (their own policies apply). None of them is operated by us.</p>
+<p>We never sell data, never share it with third parties, and never use it to train models. You can delete everything by deleting conversations in the app, clearing app data, deleting the Drive folder, or revoking the app&#x27;s access from your Google account.</p>
+<p>Use only on content you have the right to access. Any misuse — violating a service&#x27;s Terms, privacy, or the law — is solely your responsibility.</p>
+<p>Contact: sbedmon1@gmail.com</p>
+</section>
+
+<footer>AIChatExporter — سیاست حریم خصوصی، نسخهٔ ۱.۱ (۲۸ اکتبر ۲۰۲۶)</footer>
+</body>
+</html>
