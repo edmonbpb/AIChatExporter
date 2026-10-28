@@ -2,6 +2,7 @@ package com.example.ui.viewmodel
 
 import android.app.Application
 import android.content.Context
+import android.content.Intent
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -37,7 +38,11 @@ import com.example.domain.parser.scrubInventedModel
 import com.example.ui.components.AppScreen
 import com.example.ui.theme.AppFontFamilyPreset
 import com.example.ui.theme.AppThemePreset
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -46,6 +51,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.FileNotFoundException
 import java.util.UUID
@@ -151,40 +158,136 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // Drive backup: one file a day in a visible folder, restored by hand and never destructive.
     private val _driveBackupStatus = MutableStateFlow<String?>(null)
     val driveBackupStatus: StateFlow<String?> = _driveBackupStatus.asStateFlow()
+    private val _driveLinked = MutableStateFlow(DriveAuth.hasConsent(application))
+    val driveLinked: StateFlow<Boolean> = _driveLinked.asStateFlow()
+    var pendingDriveRecoveryIntent: Intent? = null
+        private set
     private val backupManager by lazy { BackupManager(getApplication(), db) }
-
-    fun driveIsLinked(): Boolean = DriveAuth.hasConsent(getApplication())
+    private val driveOperationMutex = Mutex()
+    private var driveOperation: Job? = null
+    private var driveConsentPending = false
+    private var driveSignedOut = false
 
     fun driveLastBackupDate(): String? = backupManager.lastBackupDate()
 
-    private suspend fun driveTokenOrNull(): String? =
-        withContext(Dispatchers.IO) { DriveAuth.accessToken(getApplication()) }
+    private suspend fun driveTokenOrNull(): String? {
+        val outcome = withContext(Dispatchers.IO) { DriveAuth.accessToken(getApplication()) }
+        currentCoroutineContext().ensureActive()
+        return when (outcome) {
+            is DriveAuth.TokenOutcome.Token -> {
+                pendingDriveRecoveryIntent = null
+                _driveLinked.value = true
+                outcome.value
+            }
+            is DriveAuth.TokenOutcome.PermissionRequired -> {
+                pendingDriveRecoveryIntent = outcome.recoveryIntent
+                _driveLinked.value = false
+                drivePermissionMissing()
+                null
+            }
+            DriveAuth.TokenOutcome.NetworkFailure -> {
+                _driveBackupStatus.value = "ارتباط با گوگل درایو برقرار نشد؛ اینترنت را بررسی کن و دوباره تلاش کن."
+                null
+            }
+            DriveAuth.TokenOutcome.Failure -> {
+                _driveLinked.value = false
+                driveConnectionFailed()
+                null
+            }
+        }
+    }
+
+    private fun launchDriveOperation(background: Boolean = false, action: suspend () -> Unit) {
+        if (driveSignedOut || driveConsentPending) return
+        if (background && driveOperation?.isActive == true) return
+        driveOperation?.cancel()
+        driveOperation = viewModelScope.launch {
+            driveOperationMutex.withLock {
+                try {
+                    action()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    currentCoroutineContext().ensureActive()
+                    driveConnectionFailed()
+                }
+            }
+        }
+    }
+
+    /** Re-checks the connection when the card opens. Silent on success: the card already shows it. */
+    fun refreshDriveConnection() {
+        launchDriveOperation(background = true) {
+            driveTokenOrNull()
+        }
+    }
+
+    fun beginDriveConsent(): Boolean {
+        if (driveSignedOut || driveConsentPending) return false
+        driveOperation?.cancel()
+        driveConsentPending = true
+        _driveLinked.value = false
+        _driveBackupStatus.value = null
+        return true
+    }
+
+    fun onDriveConsentResult(granted: Boolean) {
+        if (!driveConsentPending) return
+        driveConsentPending = false
+        if (!granted) {
+            _driveBackupStatus.value = "اتصال به گوگل درایو لغو شد؛ برای تلاش دوباره دکمهٔ اتصال را بزن."
+            return
+        }
+        launchDriveOperation {
+            _driveBackupStatus.value = "در حال بررسی اتصال به گوگل درایو…"
+            if (driveTokenOrNull() != null) driveConnectionValidated()
+        }
+    }
+
+    fun onDriveConsentError() {
+        if (!driveConsentPending) return
+        driveConsentPending = false
+        _driveLinked.value = false
+        driveConnectionFailed()
+    }
+
+    private fun driveConnectionValidated() {
+        _driveBackupStatus.value = "اتصال به گوگل درایو برقرار شد؛ حالا می‌توانی پشتیبان بگیری یا بازگردانی کنی."
+    }
+
+    private fun driveConnectionFailed() {
+        _driveBackupStatus.value = "اتصال به گوگل درایو انجام نشد؛ دوباره تلاش کن."
+    }
 
     private fun drivePermissionMissing() {
         _driveBackupStatus.value = "اجازهٔ نوشتن در گوگل درایو داده نشده است؛ از دکمهٔ اتصال استفاده کن."
     }
 
     fun backUpToDriveNow() {
-        viewModelScope.launch {
+        launchDriveOperation {
             _driveBackupStatus.value = "در حال پشتیبان‌گیری…"
-            val token = driveTokenOrNull() ?: run { drivePermissionMissing(); return@launch }
-            _driveBackupStatus.value = backupManager.backUp(token).message
+            val token = driveTokenOrNull() ?: return@launchDriveOperation
+            val outcome = backupManager.backUp(token)
+            currentCoroutineContext().ensureActive()
+            _driveBackupStatus.value = outcome.message
         }
     }
 
     fun restoreFromDrive() {
-        viewModelScope.launch {
+        launchDriveOperation {
             _driveBackupStatus.value = "در حال بازگردانی…"
-            val token = driveTokenOrNull() ?: run { drivePermissionMissing(); return@launch }
-            _driveBackupStatus.value = backupManager.restoreLatest(token).message
+            val token = driveTokenOrNull() ?: return@launchDriveOperation
+            val outcome = backupManager.restoreLatest(token)
+            currentCoroutineContext().ensureActive()
+            _driveBackupStatus.value = outcome.message
         }
     }
 
     /** Called once when the app opens: at most one automatic backup per calendar day. */
     fun autoBackUpIfDue() {
-        viewModelScope.launch {
-            if (!backupManager.isDue()) return@launch
-            val token = driveTokenOrNull() ?: return@launch
+        launchDriveOperation(background = true) {
+            if (!backupManager.isDue()) return@launchDriveOperation
+            val token = driveTokenOrNull() ?: return@launchDriveOperation
             backupManager.backUp(token)
         }
     }
@@ -370,6 +473,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun signOut() {
+        driveSignedOut = true
+        driveConsentPending = false
+        driveOperation?.cancel()
+        pendingDriveRecoveryIntent = null
+        _driveLinked.value = false
+        _driveBackupStatus.value = null
         clearAccountPrefs()
         _userProfile.value = null
         resetSession()
@@ -483,6 +592,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun persistUser(profile: UserProfile) {
+        driveSignedOut = false
         prefs.edit()
             .putString("user_id", profile.id)
             .putString("user_name", profile.name)

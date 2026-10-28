@@ -1,12 +1,16 @@
 package com.example.data.remote.drive
 
 import android.content.Context
+import android.content.Intent
 import com.google.android.gms.auth.GoogleAuthUtil
+import com.google.android.gms.auth.UserRecoverableAuthException
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.Scope
+import kotlinx.coroutines.CancellationException
+import java.io.IOException
 
 /**
  * The one permission this app asks Google for: its own files in Drive, nothing else. `drive.file`
@@ -31,19 +35,35 @@ internal object DriveAuth {
 
     fun lastAccount(context: Context): GoogleSignInAccount? = GoogleSignIn.getLastSignedInAccount(context)
 
-    /** True when this device already holds a consent for the scope, so no window has to open. */
+    /** Cached hint only; a token request may still require fresh consent. */
     fun hasConsent(context: Context): Boolean {
         val granted = lastAccount(context)?.grantedScopes ?: return false
         return granted.any { it.scopeUri == SCOPE }
     }
 
-    /** Blocking; call from an IO dispatcher. Null means the consent is missing or was revoked. */
-    fun accessToken(context: Context): String? {
-        val account = lastAccount(context)?.account ?: return null
-        return try {
-            GoogleAuthUtil.getToken(context, account, "oauth2:$SCOPE")
-        } catch (_: Exception) {
-            null
+    sealed interface TokenOutcome {
+        data class Token(val value: String) : TokenOutcome
+        data class PermissionRequired(val recoveryIntent: Intent?) : TokenOutcome
+        data object NetworkFailure : TokenOutcome
+        data object Failure : TokenOutcome
+    }
+
+    /** Blocking; call from an IO dispatcher. Never persist or log the token. */
+    fun accessToken(context: Context): TokenOutcome = try {
+        val account = lastAccount(context)?.account
+        if (account == null) {
+            TokenOutcome.PermissionRequired(null)
+        } else {
+            val token = GoogleAuthUtil.getToken(context, account, "oauth2:$SCOPE")
+            if (token.isNullOrBlank()) TokenOutcome.Failure else TokenOutcome.Token(token)
         }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: UserRecoverableAuthException) {
+        TokenOutcome.PermissionRequired(e.intent)
+    } catch (_: IOException) {
+        TokenOutcome.NetworkFailure
+    } catch (_: Exception) {
+        TokenOutcome.Failure
     }
 }

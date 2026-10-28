@@ -1,6 +1,8 @@
 package com.example.ui.screens
 
+import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -48,6 +50,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -74,6 +77,9 @@ import com.example.ui.theme.AppThemePreset
 import com.example.ui.theme.Cyan40
 import com.example.ui.theme.Indigo40
 import com.example.ui.viewmodel.MainViewModel
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.common.api.ApiException
+import kotlinx.coroutines.CancellationException
 
 @Composable
 fun SettingsScreen(
@@ -222,15 +228,52 @@ fun SettingsScreen(
                 // One-way backup into a visible folder. The permission is asked here, never silently.
                 val driveContext = LocalContext.current
                 val driveStatus by viewModel.driveBackupStatus.collectAsState()
-                var driveLinked by remember { mutableStateOf(viewModel.driveIsLinked()) }
-                val driveLauncher = rememberLauncherForActivityResult(
-                    androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
-                ) { driveLinked = viewModel.driveIsLinked() }
+                val driveLinked by viewModel.driveLinked.collectAsState()
+                LaunchedEffect(viewModel) { viewModel.refreshDriveConnection() }
+                val driveSignInLauncher = rememberLauncherForActivityResult(
+                    ActivityResultContracts.StartActivityForResult()
+                ) { result ->
+                    if (result.resultCode == Activity.RESULT_CANCELED) {
+                        viewModel.onDriveConsentResult(false)
+                    } else if (result.resultCode != Activity.RESULT_OK) {
+                        viewModel.onDriveConsentError()
+                    } else {
+                        try {
+                            val account = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+                                .getResult(ApiException::class.java)
+                            if (account != null) viewModel.onDriveConsentResult(true)
+                            else viewModel.onDriveConsentError()
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (_: Exception) {
+                            viewModel.onDriveConsentError()
+                        }
+                    }
+                }
+                val driveRecoveryLauncher = rememberLauncherForActivityResult(
+                    ActivityResultContracts.StartActivityForResult()
+                ) { result ->
+                    when (result.resultCode) {
+                        Activity.RESULT_OK -> viewModel.onDriveConsentResult(true)
+                        Activity.RESULT_CANCELED -> viewModel.onDriveConsentResult(false)
+                        else -> viewModel.onDriveConsentError()
+                    }
+                }
 
                 if (!driveLinked) {
                     OutlinedButton(
                         onClick = {
-                            runCatching { driveLauncher.launch(DriveAuth.client(driveContext).signInIntent) }
+                            if (viewModel.beginDriveConsent()) {
+                                try {
+                                    val recoveryIntent = viewModel.pendingDriveRecoveryIntent
+                                    if (recoveryIntent != null) driveRecoveryLauncher.launch(recoveryIntent)
+                                    else driveSignInLauncher.launch(DriveAuth.client(driveContext).signInIntent)
+                                } catch (e: CancellationException) {
+                                    throw e
+                                } catch (_: Exception) {
+                                    viewModel.onDriveConsentError()
+                                }
+                            }
                         },
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.testTag("drive_connect_btn")
