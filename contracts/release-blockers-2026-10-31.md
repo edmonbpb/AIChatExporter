@@ -175,3 +175,56 @@ Same ground rules as Item A: no Gradle, no device, no git, only the files Item A
 weaken any existing assertion or change any existing Persian string — `DriveReconnectTest` asserts one
 verbatim. Report the new pure function's signature, the test names you added, and anything you could
 not do.
+
+---
+
+## Item D — B-45: one visible cause per sentence
+
+Measured on `R58X30GS9QJ` with the signed release build (2026-10-31): Google's own log said this build
+is **not registered** (`errorMsg=[28444] Developer console is not set up correctly`, and for the Drive
+token `This android application is not registered to use OAuth2.0, please confirm the package name and
+SHA-1 certificate fingerprint`), while the screen told the user "no signed-in Google account was found
+on this device" — at the same moment Google's own account chooser was listing two of the user's
+accounts. The Drive card collapses causes the same way: a guest who never signed in with Google is told
+"write permission to Google Drive has not been granted", which blames them for a permission they were
+never asked for.
+
+Three decisions are already made, do not re-debate them: do not parse Google's numeric codes out of
+exception strings (fragile, and the developer-misconfiguration case arrives with no typed reason); do
+ask `AccountManager` whether any Google account exists on the device (it is already used in this
+project); and do not touch the Drive card's **state** logic — Item C just settled it.
+
+Files you own:
+
+1. `app/src/main/java/com/example/data/remote/auth/GoogleAuthManager.kt`
+   - Around line 75 one sentence is chosen for every failure. Split it by the cause the code can
+     actually see: (a) no Google account on the device at all → the current sentence is true, keep it;
+     (b) an account exists but the request still failed → say the sign-in did not complete even though
+     an account is present, and that guest mode is available. Do not name the developer console as the
+     certain cause — we do not receive that as a typed reason.
+   - Keep logging the provider's raw message the way the surrounding code already logs.
+2. `app/src/main/java/com/example/ui/viewmodel/MainViewModel.kt` and
+   `app/src/main/java/com/example/ui/screens/SettingsScreen.kt`
+   - `drivePermissionMissing()` must not be the sentence shown when the user is not signed in with
+     Google at all. Use what the view model already knows (the account profile / prefs it reads) to pick
+     the guest sentence instead. Do not add a new state field, do not change `driveLinkedAfterToken`,
+     the `drive_refused` key, or any card transition, and do not change the B-42 sentence
+     `اجازهٔ نوشتن در گوگل درایو داده نشده است؛ از دکمهٔ اتصال استفاده کن.` where it really is about a
+     missing consent after a Google sign-in.
+3. `app/src/test/java/com/example/` — cover the new sentences. Follow the pattern already proven in
+   this repo (`DriveReconnectTest.kt`: Robolectric, a narrow shadow of one Google class, the real view
+   model and settings screen). Assert each new sentence, and say plainly which sentences no test reads.
+
+New sentences, copied verbatim out of this file (never retype Persian into an edit):
+
+   - guest / not signed in with Google, Drive card:
+
+     اول با حسابِ گوگل وارد شو، بعد برنامه را به درایو وصل کن.
+
+   - an account exists but Google refused the sign-in:
+
+     ورود با گوگل انجام نشد؛ حسابِ گوگل روی این دستگاه هست ولی این برنامه نتوانست با آن وارد شود. می‌توانی به‌عنوان مهمان ادامه دهی.
+
+Ground rules: no Gradle, no device, no git writes; only the files above; `docs/09_DEBUG_PLAN.md`,
+`docs/reports/**` and the register stay the controller's. Report every string you added and where,
+each new test name, and anything you left uncovered.
