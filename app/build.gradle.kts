@@ -32,7 +32,7 @@ android {
   compileSdk { version = release(36) { minorApiLevel = 1 } }
 
   defaultConfig {
-    applicationId = "com.aistudio.aichatexporter.kxrtva"
+    applicationId = "com.aistudio.aichatexporter"
     minSdk = 29
     targetSdk = 36
     versionCode = 1

@@ -33,7 +33,7 @@ adb devices -l
 
 | check | command | expected |
 |---|---|---|
-| app installed | `adb -s S shell dumpsys package com.aistudio.aichatexporter.kxrtva \| grep versionName` | `versionName=1.0` |
+| app installed | `adb -s S shell dumpsys package com.aistudio.aichatexporter \| grep versionName` | `versionName=1.0` |
 | app build age | same command, `grep lastUpdateTime` | today; if older than the newest APK the Coder built, report `STALE_BUILD` and stop |
 | screen size | `adb -s S shell wm size` | note it; it changes how much is on screen |
 
@@ -89,8 +89,8 @@ still not there, stop and report `BLOCKER_NODE_NOT_FOUND` with the dump path. Do
 
 ### Step 1 — cold start
 ```
-adb -s S shell am force-stop com.aistudio.aichatexporter.kxrtva
-adb -s S shell am start -n com.aistudio.aichatexporter.kxrtva/com.example.MainActivity
+adb -s S shell am force-stop com.aistudio.aichatexporter
+adb -s S shell am start -n com.aistudio.aichatexporter/com.example.MainActivity
 ```
 Wait 4 s, dump, confirm you are on a real screen (it opens either the workspace or the export studio
 wherever the last session left off). Identify it by its title text: «ورود داده…» means the import

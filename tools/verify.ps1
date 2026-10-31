@@ -9,7 +9,7 @@
     1  .\gradlew :app:assembleDebug --offline
     2  .\gradlew :app:testDebugUnitTest --rerun-tasks --offline   + parse the JUnit XML
     3  Persian/Arabic text-integrity scan over app\src and docs (reports the ZWNJ count)
-    4  aapt dump badging on the built APK; package must be com.aistudio.aichatexporter.kxrtva
+    4  aapt dump badging on the built APK; package must be com.aistudio.aichatexporter
 
   Rules this script obeys (contract, not preference):
     - it Set-Location's to the repo root first, so it works from anywhere;
@@ -55,7 +55,7 @@ try {
     [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
 } catch { }
 
-$ExpectedPackage = 'com.aistudio.aichatexporter.kxrtva'
+$ExpectedPackage = 'com.aistudio.aichatexporter'
 $WorkDir = Join-Path $RepoRoot 'app\build\verify'
 $BaselinePath = Join-Path $WorkDir 'foreign-baseline.txt'
 $OfflineFlag = '--offline'

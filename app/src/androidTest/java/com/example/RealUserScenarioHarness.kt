@@ -9,7 +9,7 @@ import java.io.File
 
 object RealUserScenarioHarness {
     const val PINNED_SERIAL = "emulator-5554"
-    const val PACKAGE = "com.aistudio.aichatexporter.kxrtva"
+    const val PACKAGE = "com.aistudio.aichatexporter"
     const val REF_LINK = "https://chatgpt.com/share/6adc95e5-031c-83ea-958d-3a70bfe98720"
     fun device(): UiDevice = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
     fun dumpUi(tag: String): File {

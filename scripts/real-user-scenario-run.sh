@@ -3,7 +3,7 @@
 # The app's own VPN stays untouched: nothing here stops, installs or reboots any other package.
 set -euo pipefail
 ADB="${ADB_PATH:-/c/Users/edmon/AppData/Local/Android/Sdk/platform-tools/adb.exe}"
-PKG="com.aistudio.aichatexporter.kxrtva"
+PKG="com.aistudio.aichatexporter"
 RUNNER="$PKG.test/androidx.test.runner.AndroidJUnitRunner"
 
 pick_serial() {
