@@ -181,6 +181,33 @@ class DriveGuestCardTest {
     }
 
     @Test
+    fun aSessionChangeTakesThePreviousSessionsDriveSentenceOffTheCard() {
+        // The defect measured on the handset (2026-10-31): the card's line answers the last Drive event,
+        // and a session change did not reset it, so a cause the new session never met stayed on screen
+        // until some Drive call happened to overwrite it. The two directions share one reset, because
+        // the Google sign-in path and the guest entry path both persist the new profile in the same
+        // place, and this class can drive the reachable one through the view model: a signed-in session
+        // that met the missing consent, then the app's own session becomes a guest one. Nothing re-probes
+        // Drive on a session change - SettingsScreen.kt:233 keys that probe on the view model itself - so
+        // only that reset can take the old sentence off the card, which is what this test is here to hold.
+        seedCachedGoogleAccount()
+        seedAppSession(guest = false)
+        viewModel = MainViewModel(application)
+        compose.setContent { MaterialTheme { SettingsScreen(viewModel) } }
+        awaitStatus(CONSENT_MISSING)
+        compose.onNodeWithText(CONSENT_MISSING).performScrollTo().assertIsDisplayed()
+
+        compose.runOnIdle { viewModel.continueAsGuest() }
+
+        assertTrue("fixture: the session became a guest one", viewModel.userProfile.value?.isGuest == true)
+        assertNull("the previous session's cause must not outlive it", viewModel.driveBackupStatus.value)
+        compose.onNodeWithText(CONSENT_MISSING).assertDoesNotExist()
+        // The line itself stays, on the card's own fallback: the last-backup sentence (SettingsScreen.kt:317).
+        compose.onNodeWithTag("drive_status").performScrollTo().assertIsDisplayed()
+        assertEquals("a session change is not a Drive answer; nothing is probed again", 1, GoogleTokenShadow.requests.get())
+    }
+
+    @Test
     fun onlyAnAccountTheAppKnowsIsTalkedAboutInTermsOfConsent() {
         // The whole rule, read straight off the function so a swapped branch is caught: the consent
         // sentence `DriveReconnectTest` asserts stays the answer for an account this app is using, and

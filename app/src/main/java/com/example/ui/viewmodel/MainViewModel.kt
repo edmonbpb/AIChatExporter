@@ -675,6 +675,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun persistUser(profile: UserProfile) {
         driveSignedOut = false
+        // A different session inherits no sentence from the old one: the card falls back to its
+        // last-backup line until Drive answers for this session.
+        _driveBackupStatus.value = null
         prefs.edit()
             .putString("user_id", profile.id)
             .putString("user_name", profile.name)
