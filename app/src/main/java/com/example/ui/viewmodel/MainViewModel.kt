@@ -269,6 +269,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val token = driveTokenOrNull() ?: return@launchDriveOperation
             val outcome = backupManager.backUp(token)
             currentCoroutineContext().ensureActive()
+            if (outcome.accessRefused) _driveLinked.value = false
             _driveBackupStatus.value = outcome.message
         }
     }
@@ -279,6 +280,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val token = driveTokenOrNull() ?: return@launchDriveOperation
             val outcome = backupManager.restoreLatest(token)
             currentCoroutineContext().ensureActive()
+            if (outcome.accessRefused) _driveLinked.value = false
             _driveBackupStatus.value = outcome.message
         }
     }
@@ -288,7 +290,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         launchDriveOperation(background = true) {
             if (!backupManager.isDue()) return@launchDriveOperation
             val token = driveTokenOrNull() ?: return@launchDriveOperation
-            backupManager.backUp(token)
+            val outcome = backupManager.backUp(token)
+            // The daily automatic run is the first call that meets a revocation, and the only one the
+            // user never asked for, so it moves the card without adding a sentence of its own.
+            if (outcome.accessRefused) {
+                currentCoroutineContext().ensureActive()
+                _driveLinked.value = false
+                _driveBackupStatus.value = outcome.message
+            }
         }
     }
 

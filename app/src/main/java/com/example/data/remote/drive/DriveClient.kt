@@ -14,6 +14,12 @@ import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 
 /**
+ * Drive looked at the token and said no (`401`/`403`) — a different fact from "no answer at all",
+ * because the consent was revoked on the Google account page and reconnecting is the only fix.
+ */
+class DriveAccessRefusedException(val httpCode: Int) : IOException("Drive refused the access token ($httpCode)")
+
+/**
  * The four Drive operations a backup needs, and nothing else: find or create the visible folder,
  * upload one JSON file, list the backups, download one. Plain REST over the access token, so no
  * Drive SDK is added to a build that has to keep working offline.
@@ -48,6 +54,7 @@ internal class DriveClient(
             .build()
         http.newCall(request).execute().use { response ->
             val body = response.body?.string().orEmpty()
+            throwIfAccessRefused(response.code)
             if (!response.isSuccessful) return@withContext null
             runCatching { JSONObject(body).optString("id").takeIf { it.isNotBlank() } }.getOrNull()
         }
@@ -68,6 +75,7 @@ internal class DriveClient(
                 .post(body)
                 .build()
             http.newCall(request).execute().use { response ->
+                throwIfAccessRefused(response.code)
                 response.isSuccessful && response.body?.string().orEmpty().contains("\"id\"")
             }
         }
@@ -89,6 +97,7 @@ internal class DriveClient(
             .get()
             .build()
         http.newCall(request).execute().use { response ->
+            throwIfAccessRefused(response.code)
             if (!response.isSuccessful) null else response.body?.string()
         }
     }
@@ -111,6 +120,7 @@ internal class DriveClient(
             http.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
                     Log.w("DriveClient", "list ${response.code}: ${response.body?.string()?.take(300)}")
+                    throwIfAccessRefused(response.code)
                     return null
                 }
                 val bodyText = response.body?.string().orEmpty()
@@ -129,9 +139,19 @@ internal class DriveClient(
                     }
                 }
             }
+        } catch (e: DriveAccessRefusedException) {
+            throw e
         } catch (_: IOException) {
             null
         }
+    }
+
+    /**
+     * The one place that decides which answers mean "the token is refused". Everything else keeps
+     * treating a failure as a missing file, because it cannot tell the two apart.
+     */
+    private fun throwIfAccessRefused(code: Int) {
+        if (code == 401 || code == 403) throw DriveAccessRefusedException(code)
     }
 
     /**
