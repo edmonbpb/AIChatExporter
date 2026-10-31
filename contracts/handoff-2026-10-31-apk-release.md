@@ -32,10 +32,11 @@ byte-identical to `docs/privacy-policy.html`.
 
 **Device.** `R58X30GS9QJ` (Samsung SM-A155F). The UFI entry `6517e41c` is a 4G modem on the same USB bus:
 **never** install on it, tap it, reboot it or lock it. Installed right now: the signed keyless release
-APK (46,611,797 bytes, built 21:18 local) — but note that build does **not** contain the version line
-described in §2.1. The phone is signed in (`sbedmon1@gmail.com`), Drive is connected, the library shows
-«گفتگوها (۳)», and the last backup is `aichatexporter-backup-20261031-171330.json` (533 KB) in Drive
-folder id `1FU-X_X1TMAW_U79o3fpuG1xgSTMT2I_1`. Crash buffer was 0 after every run.
+APK built 22:32 local (46,611,797 bytes, `SHA-256 8d900741916fb3f7691c9c28559bc30f720d1cdf9c4b10d2132006dd2d9abfea`),
+installed 20:39 phone-local — this one **does** contain the version line, and the line was then read off
+the real screen (§2.2 is done). The phone is signed in (`sbedmon1@gmail.com`), Drive is connected, the
+library shows «گفتگوها (۳)», and the last backup is `aichatexporter-backup-20261031-171330.json` (533 KB)
+in Drive folder id `1FU-X_X1TMAW_U79o3fpuG1xgSTMT2I_1`. Crash buffer was 0 after every run.
 
 **Test baseline.** `./gradlew :app:testDebugUnitTest` → **167 tests, 0 failures** (measured by the
 controller at 8m32s, log `/tmp/ver-suite.log`). Relevant classes: `DriveAccessRefusedTest` 13,
@@ -59,7 +60,7 @@ as a signed APK handed out directly. Do not spend time on store listings, and do
 
 ## 2. What is LEFT, in this order
 
-### 2.1 The version line (code landed; the SCREEN sighting is still owed)
+### 2.1 The version line — DONE (code + screen)
 The app previously showed no version anywhere, which matters for hand-out APKs. Landed in
 `SettingsScreen.kt:789-797`: it renders `نسخهٔ برنامه: <versionName> (<versionCode>)` inside the existing
 about/privacy card, tagged `settings_version_line`, and one test
@@ -70,9 +71,13 @@ Decisions already taken — do not reopen: Latin digits on purpose (a build id m
 What is NOT done: no built artifact contains it yet, so nobody has seen it on a real screen. That is
 §2.2.
 
-### 2.2 Rebuild the signed keyless release and install it, then LOOK at the version line on the phone
-This is the only part of the wave that has never been seen on a real screen. Commands (controller owns
-Gradle and the device):
+### 2.2 Rebuild, verify, install, and SEE the version line — DONE 2026-10-31 22:39
+Both builds ran with the cache rule and passed, `tools/verify.ps1 -Stage 4` printed
+`package=com.aistudio.aichatexporter … RESULT: PASS`, the artifact verified as described below
+(SHA-1 `b7075e5e…1b9b`, AI key in 0 of 3 dex, version label present in the dex), it was installed on
+`R58X30GS9QJ`, and the line was then read off the screen from the hierarchy, not a screenshot:
+`settings_version_line | نسخهٔ برنامه: 1.0 (1)` (evidence `docs/reports/raw/rel31d-03-scrolled.xml`).
+The commands below are kept because any future build needs the same cache dance:
 ```bash
 cd /c/Users/edmon/Desktop/AIChatExporter
 ./gradlew --stop
