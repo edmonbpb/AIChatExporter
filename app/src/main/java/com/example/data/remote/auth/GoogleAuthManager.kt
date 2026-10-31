@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import android.util.Base64
+import android.util.Log
 import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
@@ -70,15 +71,26 @@ object GoogleAuthManager {
         } catch (e: GetCredentialCancellationException) {
             GoogleSignInOutcome.Cancelled
         } catch (e: NoCredentialException) {
-            // No Google account on the device is a normal state, not a fault: it must not read as
-            // the same failure as a provider error.
-            GoogleSignInOutcome.Failed("حساب گوگلِ واردشده‌ای روی این دستگاه پیدا نشد. می‌توانید به‌صورت مهمان ادامه دهید.")
+            // Google handed this app no usable sign-in. That is the whole of what this exception
+            // proves: measured on `R58X30GS9QJ` (2026-10-31) it arrived while Google's own chooser was
+            // listing two of the user's accounts, because the build was not registered for OAuth. So the
+            // sentence may claim neither "no Google account on this device" nor any suspected reason, and
+            // the provider's raw words go to logcat instead of the screen.
+            Log.w(CREDENTIAL_LOG_TAG, "credential provider offered no credential", e)
+            GoogleSignInOutcome.Failed(NO_CREDENTIAL_FA)
         } catch (e: GetCredentialException) {
-            GoogleSignInOutcome.Failed(e.message ?: "ارائه‌دهندهٔ اعتبارنامه پاسخی بازنگرداند.")
+            // A provider fault is a different fact from "no credential", so it keeps its own sentence.
+            // Google's text for it is English and was measured to be wrong about the cause, so it goes
+            // to the log, not to the user.
+            Log.w(CREDENTIAL_LOG_TAG, "credential provider request failed", e)
+            GoogleSignInOutcome.Failed("ارائه‌دهندهٔ اعتبارنامه پاسخی بازنگرداند.")
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            GoogleSignInOutcome.Failed(e.message ?: "خطای ناشناخته در درخواست اعتبارنامه.")
+            // Same rule for the untyped leftovers: what the throwable carries is logged, and the user
+            // gets the one sentence this branch is allowed to give.
+            Log.w(CREDENTIAL_LOG_TAG, "credential request failed", e)
+            GoogleSignInOutcome.Failed("خطای ناشناخته در درخواست اعتبارنامه.")
         }
     }
 
@@ -183,3 +195,12 @@ private const val HOST_MISSING_FA =
 private const val NOT_CONFIGURED_FA =
     "ورود با حساب گوگل در این نسخه پیکربندی نشده است. تا وقتی شناسهٔ OAuth client در فایل " +
         "راز برنامه ننشینیم، هیچ نشستی ساخته نمی‌شود. با حالت مهمان همهٔ ابزارها باز می‌مانند."
+
+private const val CREDENTIAL_LOG_TAG = "GoogleSignIn"
+
+// B-45, and the one sentence the sign-in path may show when Google offers nothing usable (Item D2). It
+// states the observed fact and claims nothing about the handset — the phone was measured holding two
+// Google accounts while this still arrived — and names no suspected reason (an unregistered package, a
+// provider fault), because no typed value ever tells us which one it was.
+internal const val NO_CREDENTIAL_FA =
+    "گوگل برای این برنامه ورودِ قابلِ استفاده‌ای پیدا نکرد؛ روی این دستگاه دوباره تلاش کن یا به‌عنوان مهمان ادامه بده."

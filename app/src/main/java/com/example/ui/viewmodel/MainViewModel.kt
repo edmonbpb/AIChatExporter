@@ -110,6 +110,29 @@ private val LEGACY_FALSE_ROLES = mapOf("دسترسی ۱۰۰٪ آفلاین" to "
 internal fun driveLinkedAfterToken(tokenMinted: Boolean, driveRefused: Boolean): Boolean =
     tokenMinted && !driveRefused
 
+/**
+ * Which sentence the Drive card may show when Drive answers `PermissionRequired`. Two facts this app
+ * already holds decide it, and no second query to Google is made: the payload of that answer —
+ * `PermissionRequired(null)` means this app knows no Google account at all (`DriveAuth.kt:55`),
+ * `PermissionRequired(e.intent)` means an account is there and Google handed back the intent to ask it
+ * for consent (`DriveAuth.kt:63`) — and whether the session inside this app is a guest one. A guest was
+ * never asked for this permission, so "has not been granted" blames them for a choice they never saw,
+ * and that holds on a handset where Google's own cache still lists the account they signed out of: that
+ * case arrives with a recovery intent and must still read as a guest.
+ */
+internal fun drivePermissionNotice(
+    consentRecoveryPending: Boolean,
+    guestSession: Boolean
+): String =
+    if (consentRecoveryPending && !guestSession) DRIVE_CONSENT_MISSING_FA else DRIVE_SIGN_IN_FIRST_FA
+
+// The consent sentence is the one `DriveReconnectTest` asserts verbatim: same bytes, same meaning.
+private const val DRIVE_CONSENT_MISSING_FA =
+    "اجازهٔ نوشتن در گوگل درایو داده نشده است؛ از دکمهٔ اتصال استفاده کن."
+
+private const val DRIVE_SIGN_IN_FIRST_FA =
+    "اول با حسابِ گوگل وارد شو، بعد برنامه را به درایو وصل کن."
+
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val db = AppDatabase.getInstance(application)
@@ -198,7 +221,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             is DriveAuth.TokenOutcome.PermissionRequired -> {
                 pendingDriveRecoveryIntent = outcome.recoveryIntent
                 _driveLinked.value = false
-                drivePermissionMissing()
+                // What Google put in the payload is the fact the card's sentence is built from.
+                drivePermissionMissing(consentRecoveryPending = outcome.recoveryIntent != null)
                 null
             }
             DriveAuth.TokenOutcome.NetworkFailure -> {
@@ -278,8 +302,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _driveBackupStatus.value = "اتصال به گوگل درایو انجام نشد؛ دوباره تلاش کن."
     }
 
-    private fun drivePermissionMissing() {
-        _driveBackupStatus.value = "اجازهٔ نوشتن در گوگل درایو داده نشده است؛ از دکمهٔ اتصال استفاده کن."
+    private fun drivePermissionMissing(consentRecoveryPending: Boolean) {
+        // The two cases arrive through the same `PermissionRequired` answer with different payloads, so
+        // the payload is what tells them apart - beside the session this app is itself in. Nothing here
+        // asks Google a second time: the read that used to sit on this line ran on the main thread and
+        // turned every failure into "no account", which is the lie B-45 is about.
+        _driveBackupStatus.value = drivePermissionNotice(
+            consentRecoveryPending = consentRecoveryPending,
+            guestSession = _userProfile.value?.isGuest == true
+        )
     }
 
     /**

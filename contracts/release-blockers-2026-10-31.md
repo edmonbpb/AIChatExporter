@@ -228,3 +228,67 @@ New sentences, copied verbatim out of this file (never retype Persian into an ed
 Ground rules: no Gradle, no device, no git writes; only the files above; `docs/09_DEBUG_PLAN.md`,
 `docs/reports/**` and the register stay the controller's. Report every string you added and where,
 each new test name, and anything you left uncovered.
+
+---
+
+## Item D2 — the reviewer's verdict on Item D: fix-first (controller's decision, read this before Item D's plan)
+
+Item D landed but a read-only reviewer found three majors, and the controller accepts two of them as
+**errors in this contract, not in the implementation**: (1) Item D claimed `AccountManager` "is already
+used in this project" — it was not; only Item D's own two new files use it; (2) Item D's rule "ask
+AccountManager whether a Google account exists" introduced a *new* mechanism for a fact we cannot
+trust on the target handset: `AndroidManifest.xml` declares only `INTERNET` and
+`ACCESS_NETWORK_STATE`, Android 8+ hides accounts whose authenticator the app does not own
+(targetSdk 36 here), the read was a synchronous binder call reaching the UI thread
+(`GoogleAuthManager.kt:222` via `loginWithGoogle` on `viewModelScope`, and `MainViewModel.kt:300` on the
+main thread), and `googleAccountOnDevice` swallowed every `Exception` into `false` — which routes a
+read failure straight back to the exact lie B-45 exists to kill.
+
+**Decision, not open for debate: delete the `AccountManager` approach.** The app must speak only about
+causes it has already observed, using facts it already holds:
+
+1. `app/src/main/java/com/example/data/remote/auth/GoogleAuthManager.kt`
+   - Remove `googleAccountOnDevice`, the account type constant and the `AccountManager`/`Account`
+     imports it needed, and the boolean-keyed helper built on it.
+   - `NoCredentialException` must stop claiming anything about the handset. It means "Google returned
+     no usable sign-in for this app" — which the phone proved is true even when the chooser is listing
+     accounts (measured 2026-10-31 with `errorMsg=[28444]`). Use the sentence below, log the provider's
+     raw text, and keep `GetCredentialCancellationException` on its own branch as it is today.
+   - `:105` and `:109` still print Google's raw English provider text to the user. Give each its own
+     Persian sentence with the provider text moved to the log — same treatment as `:102`. If you cannot
+     tell those two causes apart from what the code receives, use ONE "the provider gave no usable
+     answer" sentence for both rather than guessing.
+   - Keep `messageFa` (with the `ورود با گوگل کامل نشد: ` prefix that `:44` adds) as the thing tests
+     assert, not just `Failed.reasonFa`.
+2. `app/src/main/java/com/example/ui/viewmodel/MainViewModel.kt`
+   - The guest/consent split must use the payload the caller already has, not a second Google query:
+     `DriveAuth.accessToken` returns `PermissionRequired(null)` exactly when this app knows no Google
+     account, and `PermissionRequired(e.intent)` when an account exists but consent is needed
+     (`DriveAuth.kt:55`, `:63`). Thread that observed fact into `drivePermissionMissing` (a parameter or
+     a key on the stored profile/`is_guest` — the contract still forbids a new Google read on the main
+     thread and forbids touching `driveLinkedAfterToken`, `drive_refused`, or any card transition).
+   - Consequence to preserve: a user who signs out and continues as a guest, on a handset where
+     Google's cache still holds the account, must get the guest sentence — not the consent sentence.
+   - Fix the comment at `:297-298`: the two cases arrive with different payloads; say that.
+3. Tests (`app/src/test/java/com/example/`)
+   - `DriveGuestCardTest` currently fails in the full suite (3 red) while passing in isolation: its
+     precondition reads a process-wide Google cache that `DriveReconnectTest`'s seeded account leaves
+     behind. Fix the fixture so the suite is green, and do not fix it by deleting the assertion — the
+     assertion is what made the pollution loud instead of silently passing.
+   - Cover the case nothing covers today, and the case that matters: **guest session while Google's
+     cache still holds an account** (seed the stale account the way `DriveReconnectTest.kt:139-141`
+     does, then `continueAsGuest()`), asserting the guest sentence. The two existing card tests walk one
+     branch; make them walk two.
+   - Add the integration test Item D was supposed to have: drive the real sign-in path so
+     `NoCredentialException` is thrown with an account present, and assert the **rendered** sentence the
+     user sees (prefix included). `GoogleSignInCauseTest`'s `theTwoCausesNeverPrintTheSameSentence`
+     is tautological — repoint it at a real invariant or drop it.
+   - Baseline to return to: green full suite (the count was 159 before Item D; Item D added 7).
+
+New sentence to use verbatim for "Google returned no usable sign-in" (splice the bytes, never retype):
+
+    گوگل برای این برنامه ورودِ قابلِ استفاده‌ای پیدا نکرد؛ روی این دستگاه دوباره تلاش کن یا به‌عنوان مهمان ادامه بده.
+
+Report: what you deleted, each branch that now selects each sentence and the observed fact it keys on,
+every new or repaired test, the full-suite status you believe it will have, and anything you left
+uncovered. No Gradle, no device, no git writes; `docs/09_DEBUG_PLAN.md` stays the controller's.
