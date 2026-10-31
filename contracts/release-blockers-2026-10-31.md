@@ -122,3 +122,56 @@ Deliberately **not** yours, do not edit:
 
 Report the complete list of files where you changed the id, and the count of `kxrtva` occurrences that
 remain in the tree outside `docs/reports/` (run a search, paste the numbers).
+
+---
+
+## Item C — the reviewer's findings on Item A (2026-10-31, same file set as Item A)
+
+A read-only reviewer read the merged Item A diff and found that the fix is incomplete in a way the
+controller's own spec caused: **Item A.3 said "do not change `driveTokenOrNull`", and that is exactly
+where the stale "connected" gets written.** The controller owns that mistake; fix it as follows.
+
+C.1 **Critical — the card goes back to "connected" one screen later.** `SettingsScreen.kt:232` runs
+`refreshDriveConnection()` on every open of Settings; that calls `driveTokenOrNull()`, Google still
+mints a token after a revocation, and `MainViewModel.kt:179` sets `_driveLinked.value = true`. So the
+backup/restore buttons return, the connect button disappears, and the status line still says access
+was withdrawn — B-43's own symptom. Change the rule so the card follows **Drive's answer, not the
+token**:
+- Add `private var driveRefused = false` beside the other Drive state in `MainViewModel`, and persist
+  it under the key `drive_refused` in the existing `drive_backup` SharedPreferences (the same file
+  `BackupManager` uses for `last_backup_date`). Seed it when the view model starts.
+- `MainViewModel.kt:179` (the Token branch) must not link the card while `driveRefused` is set. Put the
+  decision in one internal pure function next to the view model so the rule itself is testable, e.g.
+  `internal fun driveLinkedAfterToken(tokenMinted: Boolean, driveRefused: Boolean): Boolean` with a
+  KDoc line saying why a token is not proof of access.
+- Clear `driveRefused` only when Drive itself accepts something: a successful `backUp`/`restoreLatest`
+  (`outcome.ok`), and when the user starts a fresh consent (`beginDriveConsent`). Set it whenever
+  `outcome.accessRefused` arrives, at all three call sites that already check it.
+
+C.2 **Major — one throw site is unmeasured.** `DriveClient.kt:57` (the folder-creation POST) is never
+executed by any test: `ensureFolder` either throws earlier in the listing or finds the folder. Add the
+first-backup-ever sequence to `DriveAccessRefusedTest`: a `200` with `{"files":[]}` followed by a `401`,
+asserting `DriveAccessRefusedException.httpCode == 401` and that the outcome still reports revoked
+access.
+
+C.3 **Minor — a bare `403` is several different facts.** Google answers `403` for `drive.file`
+permission problems and for rate limits, and a rate-limited user must not be told they revoked
+something. Keep `401` as a refusal unconditionally; for `403`, treat it as a refusal **unless** the
+error body's `status`/`reason` says `rateLimitExceeded` or `userRateLimitExceeded` — read the body the
+same way `listFiles:123` already does, and say in one comment line why the code alone is not enough.
+
+C.4 **Minor, pre-existing — two inconsistencies the diff touched the neighbourhood of.**
+`DriveClient.kt:128` parses a 200 body without `runCatching` (its sibling at `:59` has one), so a
+malformed body escapes as `JSONException` and reaches `MainViewModel.kt:210`'s generic catch; wrap it
+like `:59`. `BackupManager.kt:87` uses `runCatching` around an insert and so swallows
+`CancellationException`; rethrow cancellation, keep ignoring the rest.
+
+C.5 **Nit — the fixtures pretend to be production values.** `DriveAccessRefusedTest.kt:179,185,187-188`
+name the folder and the file with strings the app never asks for. Use `BackupFormat.FOLDER_NAME` and
+`BackupFormat.PREFIX` so a reader is not misled.
+
+Same ground rules as Item A: no Gradle, no device, no git, only the files Item A already owned
+(`DriveClient.kt`, `BackupManager.kt`, `MainViewModel.kt`, `DriveAccessRefusedTest.kt`), and do not
+weaken any existing assertion or change any existing Persian string — `DriveReconnectTest` asserts one
+verbatim. Report the new pure function's signature, the test names you added, and anything you could
+not do.

@@ -102,6 +102,14 @@ private val LEGACY_INVENTED_EMAILS = setOf("user.verified@gmail.com", "user.goog
 // Room migration and nothing of the user is deleted.
 private val LEGACY_FALSE_ROLES = mapOf("دسترسی ۱۰۰٪ آفلاین" to "داده‌ها روی همین دستگاه")
 
+/**
+ * Whether the Drive card may say "connected": Drive's own answer wins over Google's token, because a
+ * token that still mints is not proof of access — after the consent is revoked on the Google account
+ * page Google keeps handing out an access token for a while, and every Drive call answers `401`.
+ */
+internal fun driveLinkedAfterToken(tokenMinted: Boolean, driveRefused: Boolean): Boolean =
+    tokenMinted && !driveRefused
+
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val db = AppDatabase.getInstance(application)
@@ -156,13 +164,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val distillationHistory: StateFlow<List<AIDistillationEntity>> = _distillationHistory.asStateFlow()
 
     // Drive backup: one file a day in a visible folder, restored by hand and never destructive.
+    private val backupManager by lazy { BackupManager(getApplication(), db) }
     private val _driveBackupStatus = MutableStateFlow<String?>(null)
     val driveBackupStatus: StateFlow<String?> = _driveBackupStatus.asStateFlow()
-    private val _driveLinked = MutableStateFlow(DriveAuth.hasConsent(application))
+    // Drive's own answer, kept on disk beside the backup date: a revocation outlives this process, and
+    // Google's token cache outlives the revocation, so the card cannot be rebuilt from the token alone.
+    private var driveRefused = backupManager.driveRefused()
+    private val _driveLinked = MutableStateFlow(
+        driveLinkedAfterToken(
+            tokenMinted = DriveAuth.hasConsent(application),
+            driveRefused = driveRefused
+        )
+    )
     val driveLinked: StateFlow<Boolean> = _driveLinked.asStateFlow()
     var pendingDriveRecoveryIntent: Intent? = null
         private set
-    private val backupManager by lazy { BackupManager(getApplication(), db) }
     private val driveOperationMutex = Mutex()
     private var driveOperation: Job? = null
     private var driveConsentPending = false
@@ -176,7 +192,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return when (outcome) {
             is DriveAuth.TokenOutcome.Token -> {
                 pendingDriveRecoveryIntent = null
-                _driveLinked.value = true
+                _driveLinked.value = driveLinkedAfterToken(tokenMinted = true, driveRefused = driveRefused)
                 outcome.value
             }
             is DriveAuth.TokenOutcome.PermissionRequired -> {
@@ -226,6 +242,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (driveSignedOut || driveConsentPending) return false
         driveOperation?.cancel()
         driveConsentPending = true
+        // A fresh consent is a fresh ask: a refusal recorded against the old grant must not keep the
+        // card unlinked after the user connects again, so Drive's answer starts over from nothing here.
+        rememberDriveRefused(false)
         _driveLinked.value = false
         _driveBackupStatus.value = null
         return true
@@ -263,13 +282,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _driveBackupStatus.value = "اجازهٔ نوشتن در گوگل درایو داده نشده است؛ از دکمهٔ اتصال استفاده کن."
     }
 
+    /**
+     * Records what Drive answered, in memory and on disk: the refusal has to survive a restart, or the
+     * next open of Settings — which re-probes the token — would put the card back to "connected".
+     */
+    private fun rememberDriveRefused(refused: Boolean) {
+        driveRefused = refused
+        backupManager.rememberDriveRefused(refused)
+    }
+
     fun backUpToDriveNow() {
         launchDriveOperation {
             _driveBackupStatus.value = "در حال پشتیبان‌گیری…"
             val token = driveTokenOrNull() ?: return@launchDriveOperation
             val outcome = backupManager.backUp(token)
             currentCoroutineContext().ensureActive()
-            if (outcome.accessRefused) _driveLinked.value = false
+            if (outcome.accessRefused) {
+                rememberDriveRefused(true)
+                _driveLinked.value = false
+            } else if (outcome.ok) {
+                // Drive accepted something, so any refusal on file is older than this answer.
+                rememberDriveRefused(false)
+            }
             _driveBackupStatus.value = outcome.message
         }
     }
@@ -280,7 +314,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val token = driveTokenOrNull() ?: return@launchDriveOperation
             val outcome = backupManager.restoreLatest(token)
             currentCoroutineContext().ensureActive()
-            if (outcome.accessRefused) _driveLinked.value = false
+            if (outcome.accessRefused) {
+                rememberDriveRefused(true)
+                _driveLinked.value = false
+            } else if (outcome.ok) {
+                rememberDriveRefused(false)
+            }
             _driveBackupStatus.value = outcome.message
         }
     }
@@ -295,8 +334,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             // user never asked for, so it moves the card without adding a sentence of its own.
             if (outcome.accessRefused) {
                 currentCoroutineContext().ensureActive()
+                rememberDriveRefused(true)
                 _driveLinked.value = false
                 _driveBackupStatus.value = outcome.message
+            } else if (outcome.ok) {
+                rememberDriveRefused(false)
             }
         }
     }

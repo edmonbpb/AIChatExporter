@@ -1,6 +1,8 @@
 package com.example
 
 import android.app.Application
+import android.content.Context
+import androidx.lifecycle.viewModelScope
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.example.data.backup.BackupManager
@@ -8,7 +10,12 @@ import com.example.data.local.AppDatabase
 import com.example.data.local.ChatMessageEntity
 import com.example.data.local.ChatSessionEntity
 import com.example.data.remote.drive.DriveAccessRefusedException
+import com.example.data.remote.drive.DriveAuth
 import com.example.data.remote.drive.DriveClient
+import com.example.domain.backup.BackupFormat
+import com.example.ui.viewmodel.MainViewModel
+import com.example.ui.viewmodel.driveLinkedAfterToken
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import okhttp3.Interceptor
@@ -41,6 +48,11 @@ import org.robolectric.annotation.LooperMode
  * Only Drive itself is replaced: a scripted OkHttp interceptor answers each request, so no socket is
  * opened and no device is touched. [DriveClient], [BackupManager] and a real Room database run the
  * way they do on the phone.
+ *
+ * The card's own rule is here too, because the refusal is only half the fix: Settings re-probes the
+ * token on every open, so [MainViewModel] must keep Drive's answer across that probe and across a
+ * restart. A `403` that is really a rate limit is kept apart from a revocation for the same reason —
+ * both of them tell the user something different about their own account.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -49,6 +61,7 @@ class DriveAccessRefusedTest {
 
     private lateinit var application: Application
     private lateinit var db: AppDatabase
+    private val viewModels = mutableListOf<MainViewModel>()
 
     @Before
     fun setUp() {
@@ -60,7 +73,15 @@ class DriveAccessRefusedTest {
 
     @After
     fun tearDown() {
+        viewModels.forEach { it.viewModelScope.cancel() }
+        viewModels.clear()
         db.close()
+        if (::application.isInitialized) {
+            // The refusal and the cached grant are written into real preference files; leaving them
+            // behind would make the next test in this class read this one's Drive history.
+            application.getSharedPreferences(DRIVE_BACKUP_PREFS, Context.MODE_PRIVATE).edit().clear().commit()
+            application.getSharedPreferences(SIGNIN_PREFS, Context.MODE_PRIVATE).edit().clear().commit()
+        }
     }
 
     @Test
@@ -143,6 +164,113 @@ class DriveAccessRefusedTest {
         assertNotEquals(REVOKED_MESSAGE, outcome.message)
     }
 
+    @Test
+    fun firstBackupEverRefusedOnFolderCreationCrossesTheBoundaryWithItsCode() {
+        // No folder yet, so the refusal arrives on the creating POST rather than on the listing.
+        val drive = DriveClient(
+            http(Answer(200, "OK", EMPTY_FOLDER_LIST), Answer(401, "Unauthorized", REFUSED_BODY))
+        )
+
+        try {
+            runBlocking { drive.ensureFolder(TOKEN, FOLDER) }
+            fail("a 401 on the folder the app has never made must not look like a missing folder")
+        } catch (expected: DriveAccessRefusedException) {
+            assertEquals(401, expected.httpCode)
+        }
+    }
+
+    @Test
+    fun firstBackupEverRefusedOnFolderCreationReportsRevokedAccess() {
+        val manager = manager(
+            Answer(200, "OK", EMPTY_FOLDER_LIST), Answer(401, "Unauthorized", REFUSED_BODY)
+        )
+
+        val outcome = runBlocking { manager.backUp(TOKEN) }
+
+        assertFalse(outcome.ok)
+        assertTrue(outcome.accessRefused)
+        assertEquals(REVOKED_MESSAGE, outcome.message)
+        assertNull("the first backup of all cannot mark the day as backed up", manager.lastBackupDate())
+    }
+
+    @Test
+    fun rateLimited403StaysAnOrdinaryFailureAtTheDriveBoundary() {
+        val drive = DriveClient(http(Answer(403, "Forbidden", RATE_LIMIT_BODY)))
+
+        assertNull(
+            "a rate limit is not a revocation, so it must not be carried up as one",
+            runBlocking { drive.ensureFolder(TOKEN, FOLDER) }
+        )
+    }
+
+    @Test
+    fun rateLimited403DoesNotTellTheUserTheyRevokedAccess() {
+        val manager = manager(Answer(403, "Forbidden", RATE_LIMIT_BODY))
+
+        val outcome = runBlocking { manager.backUp(TOKEN) }
+
+        assertFalse(outcome.ok)
+        assertFalse("a rate limit says nothing about the consent", outcome.accessRefused)
+        assertNotEquals(REVOKED_MESSAGE, outcome.message)
+    }
+
+    @Test
+    fun malformedFolderListingReadsAsNoFoldersInsteadOfEscapingAJsonError() {
+        // A `200` whose body is not JSON used to escape as JSONException and land in the view model's
+        // generic "connection failed" catch; the sibling parse in `ensureFolder` already read it as
+        // "nothing here", and so does this one now.
+        val drive = DriveClient(http(Answer(200, "OK", NOT_JSON_BODY)))
+        assertNull(runBlocking { drive.ensureFolder(TOKEN, FOLDER) })
+
+        val outcome = runBlocking { manager(Answer(200, "OK", NOT_JSON_BODY)).backUp(TOKEN) }
+
+        assertFalse(outcome.ok)
+        assertFalse("a body the app cannot read says nothing about the consent", outcome.accessRefused)
+        assertNotEquals(REVOKED_MESSAGE, outcome.message)
+    }
+
+    @Test
+    fun cardFollowsDrivesAnswerNotTheMintedToken() {
+        assertFalse(
+            "a token Google still mints after a revocation is not proof of access",
+            driveLinkedAfterToken(tokenMinted = true, driveRefused = true)
+        )
+        assertTrue(driveLinkedAfterToken(tokenMinted = true, driveRefused = false))
+        assertFalse(driveLinkedAfterToken(tokenMinted = false, driveRefused = false))
+        assertFalse(driveLinkedAfterToken(tokenMinted = false, driveRefused = true))
+    }
+
+    @Test
+    fun aRestartDoesNotUndoDrivesRefusal() {
+        seedStaleGrant()
+        assertTrue("fixture must reproduce the stale cached grant", DriveAuth.hasConsent(application))
+        assertTrue(
+            "with nothing Drive refused, the card still follows the grant",
+            viewModel().driveLinked.value
+        )
+
+        // The answer a Drive call gave before this process ended, read the way the next start reads it.
+        BackupManager(application, db).rememberDriveRefused(true)
+
+        assertFalse("a fresh view model may not re-link a card Drive refused", viewModel().driveLinked.value)
+    }
+
+    private fun viewModel(): MainViewModel = MainViewModel(application).also { viewModels += it }
+
+    /** The real Google Play services cache file, so [DriveAuth]'s own check sees a granted scope. */
+    private fun seedStaleGrant() {
+        application.getSharedPreferences(SIGNIN_PREFS, Context.MODE_PRIVATE)
+            .edit().clear()
+            .putString("defaultGoogleSignInAccount", ACCOUNT_KEY)
+            .putString(
+                "googleSignInAccount:$ACCOUNT_KEY",
+                """{"id":"$ACCOUNT_KEY","email":"$TEST_EMAIL","displayName":"Refused Drive Test",""" +
+                    """"expirationTime":4102444800,"obfuscatedIdentifier":"$ACCOUNT_KEY",""" +
+                    """"grantedScopes":["${DriveAuth.SCOPE}"]}"""
+            )
+            .commit()
+    }
+
     private fun manager(vararg answers: Answer): BackupManager =
         BackupManager(application, db, DriveClient(http(*answers)))
 
@@ -176,16 +304,34 @@ class DriveAccessRefusedTest {
 
     private companion object {
         const val TOKEN = "token-still-minted-after-revocation"
-        const val FOLDER = "AIChatExporter Backups"
+        const val TEST_EMAIL = "drive-refused@example.invalid"
+        const val ACCOUNT_KEY = "refused-drive-account"
+
+        // The two preference files this feature writes: Drive's answer, and Google's own grant cache.
+        const val DRIVE_BACKUP_PREFS = "drive_backup"
+        const val SIGNIN_PREFS = "com.google.android.gms.signin"
+
+        // The names the app actually asks Drive for, so a reader is not shown a folder or a file the
+        // production code never mentions.
+        val FOLDER = BackupFormat.FOLDER_NAME
+        val FOLDER_LIST = """{"files":[{"id":"folder-1","name":"${BackupFormat.FOLDER_NAME}"}]}"""
+        val BACKUP_LIST =
+            """{"files":[{"id":"backup-1","name":"${BackupFormat.PREFIX}20261031-101500${BackupFormat.EXTENSION}",""" +
+                """"size":"4096","createdTime":"2026-10-31T10:15:00Z"}]}"""
+        const val EMPTY_FOLDER_LIST = """{"files":[]}"""
 
         // The answer Google actually sends once the consent was withdrawn.
         const val REFUSED_BODY =
             """{"error":{"code":401,"message":"Request had invalid authentication credentials.","status":"UNAUTHENTICATED"}}"""
         const val SERVER_ERROR_BODY = """{"error":{"message":"Backend error."}}"""
-        const val FOLDER_LIST = """{"files":[{"id":"folder-1","name":"AIChatExporter Backups"}]}"""
-        const val BACKUP_LIST =
-            """{"files":[{"id":"backup-1","name":"aichat-export.json","size":"4096",""" +
-                """"createdTime":"2026-10-31T10:15:00Z"}]}"""
+
+        // The same `403` code for a different fact: the account is answering too often, not revoked.
+        const val RATE_LIMIT_BODY =
+            """{"error":{"code":403,"message":"User Rate Limit Exceeded","status":"RESOURCE_EXHAUSTED",""" +
+                """"errors":[{"domain":"usageLimits","reason":"userRateLimitExceeded"}]}}"""
+
+        // A `200` whose body is not JSON at all, which is what a proxy in front of Drive sends.
+        const val NOT_JSON_BODY = "<html><body>Bad Gateway</body></html>"
 
         // The app's own copy, asserted verbatim so what the user reads cannot drift unnoticed.
         const val REVOKED_MESSAGE =

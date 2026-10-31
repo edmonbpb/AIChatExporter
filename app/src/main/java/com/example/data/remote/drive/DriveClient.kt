@@ -14,8 +14,9 @@ import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 
 /**
- * Drive looked at the token and said no (`401`/`403`) — a different fact from "no answer at all",
- * because the consent was revoked on the Google account page and reconnecting is the only fix.
+ * Drive looked at the token and said no (a `401`, or a `403` that the body does not explain as a rate
+ * limit) — a different fact from "no answer at all", because the consent was revoked on the Google
+ * account page and reconnecting is the only fix.
  */
 class DriveAccessRefusedException(val httpCode: Int) : IOException("Drive refused the access token ($httpCode)")
 
@@ -54,7 +55,7 @@ internal class DriveClient(
             .build()
         http.newCall(request).execute().use { response ->
             val body = response.body?.string().orEmpty()
-            throwIfAccessRefused(response.code)
+            throwIfAccessRefused(response.code, body)
             if (!response.isSuccessful) return@withContext null
             runCatching { JSONObject(body).optString("id").takeIf { it.isNotBlank() } }.getOrNull()
         }
@@ -75,8 +76,9 @@ internal class DriveClient(
                 .post(body)
                 .build()
             http.newCall(request).execute().use { response ->
-                throwIfAccessRefused(response.code)
-                response.isSuccessful && response.body?.string().orEmpty().contains("\"id\"")
+                val answer = response.body?.string().orEmpty()
+                throwIfAccessRefused(response.code, answer)
+                response.isSuccessful && answer.contains("\"id\"")
             }
         }
 
@@ -97,8 +99,14 @@ internal class DriveClient(
             .get()
             .build()
         http.newCall(request).execute().use { response ->
-            throwIfAccessRefused(response.code)
-            if (!response.isSuccessful) null else response.body?.string()
+            if (response.isSuccessful) {
+                response.body?.string()
+            } else {
+                // The error body is read here and nowhere else: it can be consumed only once, and it is
+                // the body that tells a rate limit apart from a withdrawn consent.
+                throwIfAccessRefused(response.code, response.body?.string().orEmpty())
+                null
+            }
         }
     }
 
@@ -119,13 +127,16 @@ internal class DriveClient(
         return try {
             http.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
-                    Log.w("DriveClient", "list ${response.code}: ${response.body?.string()?.take(300)}")
-                    throwIfAccessRefused(response.code)
+                    val errorBody = response.body?.string().orEmpty()
+                    Log.w("DriveClient", "list ${response.code}: ${errorBody.take(300)}")
+                    throwIfAccessRefused(response.code, errorBody)
                     return null
                 }
                 val bodyText = response.body?.string().orEmpty()
                 Log.i("DriveClient", "list ok: ${bodyText.take(200)}")
-                val files = JSONObject(bodyText).optJSONArray("files")
+                // Read like the folder-creation parse below it: a body Drive did not send as JSON is an
+                // empty listing, not a JSONException that escapes to the caller's generic failure message.
+                val files = runCatching { JSONObject(bodyText).optJSONArray("files") }.getOrNull()
                     ?: return emptyList()
                 (0 until files.length()).mapNotNull { index ->
                     files.optJSONObject(index)?.let { file ->
@@ -150,9 +161,29 @@ internal class DriveClient(
      * The one place that decides which answers mean "the token is refused". Everything else keeps
      * treating a failure as a missing file, because it cannot tell the two apart.
      */
-    private fun throwIfAccessRefused(code: Int) {
-        if (code == 401 || code == 403) throw DriveAccessRefusedException(code)
+    private fun throwIfAccessRefused(code: Int, errorBody: String) {
+        // A `401` is a refusal on its own; a `403` is not, because the same code also answers a rate
+        // limit, so the body has to be read before anything is claimed about the user's consent.
+        if (code == 401) throw DriveAccessRefusedException(code)
+        if (code == 403 && !isRateLimited(errorBody)) throw DriveAccessRefusedException(code)
     }
+
+    /**
+     * A bare `403` is several different facts: Google sends it both for a `drive.file` permission
+     * problem and for a rate limit, and only the body's `status`/`reason` say which. A user who is
+     * being rate limited must not be told they revoked something.
+     */
+    private fun isRateLimited(errorBody: String): Boolean = runCatching {
+        val error = JSONObject(errorBody).optJSONObject("error") ?: return@runCatching false
+        val reasons = mutableListOf(error.optString("status"), error.optString("reason"))
+        error.optJSONArray("errors")?.let { items ->
+            // The reason Google itself sends sits in this array, not beside the top-level status.
+            (0 until items.length()).forEach { index ->
+                items.optJSONObject(index)?.let { reasons += it.optString("reason") }
+            }
+        }
+        reasons.any { it == RATE_LIMITED || it == USER_RATE_LIMITED }
+    }.getOrDefault(false)
 
     /**
      * A query parameter, not a form field: URLEncoder writes a space as a plus sign, and Drive reads
@@ -164,5 +195,9 @@ internal class DriveClient(
 
     private companion object {
         val JSON = "application/json; charset=utf-8".toMediaType()
+
+        // The two bodies Drive sends when the account is simply being answered too often.
+        const val RATE_LIMITED = "rateLimitExceeded"
+        const val USER_RATE_LIMITED = "userRateLimitExceeded"
     }
 }

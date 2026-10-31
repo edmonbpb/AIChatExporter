@@ -8,6 +8,7 @@ import com.example.domain.backup.BackupFormat
 import com.example.domain.backup.BackupPayload
 import com.example.domain.backup.planRestore
 import com.example.domain.exporter.DocumentExporter
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -29,6 +30,17 @@ internal class BackupManager(
     private val prefs = context.getSharedPreferences("drive_backup", Context.MODE_PRIVATE)
 
     fun lastBackupDate(): String? = prefs.getString(KEY_LAST_DATE, null)
+
+    /**
+     * Drive's own answer, kept beside the backup date. Google keeps minting an access token for a while
+     * after a revocation, so a card rebuilt from the token alone would say "connected" again on the next
+     * start; this is the part the view model has to remember across one.
+     */
+    fun driveRefused(): Boolean = prefs.getBoolean(KEY_DRIVE_REFUSED, false)
+
+    fun rememberDriveRefused(refused: Boolean) {
+        prefs.edit().putBoolean(KEY_DRIVE_REFUSED, refused).apply()
+    }
 
     /** The automatic run happens on the first open of a local calendar day. */
     fun isDue(now: Long = System.currentTimeMillis()): Boolean =
@@ -84,7 +96,12 @@ internal class BackupManager(
             }
             val restored = toWrite.size
             // Export records are history, not conversation: a row that already exists stays as it is.
-            payload.exportRecords.forEach { record -> runCatching { db.exportDao().insertExportRecord(record) } }
+            payload.exportRecords.forEach { record ->
+                // `runCatching` catches Throwable, and a cancelled restore is a Throwable too, so the
+                // cancellation is handed back. Every other complaint from the history table stays ignored.
+                runCatching { db.exportDao().insertExportRecord(record) }
+                    .onFailure { error -> if (error is CancellationException) throw error }
+            }
 
             if (restored == 0) {
                 Outcome(false, "فایلِ پشتیبان از گفتگوهای گوشی تو تازه‌تر نبود؛ چیزی تغییر نکرد.")
@@ -98,6 +115,7 @@ internal class BackupManager(
 
     private companion object {
         const val KEY_LAST_DATE = "last_backup_date"
+        const val KEY_DRIVE_REFUSED = "drive_refused"
 
         // What a `401`/`403` from Drive means to the user, said in one place: the consent was taken
         // back on the Google account page, so the card's connect button is the way out.
