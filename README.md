@@ -48,6 +48,28 @@ Release builds are signed from three environment variables: `KEYSTORE_PATH`,
 `STORE_PASSWORD`, and `KEY_PASSWORD`. Add `-PpublicBuild=true` to leave the AI
 key out of the artifact.
 
+## Release
+
+This project is distributed as a signed APK handed out directly; there is no store listing. The
+artifact is `app/build/outputs/apk/release/app-release.apk`, package
+`com.aistudio.aichatexporter`, signed with the release key.
+
+```bash
+./gradlew --stop
+./gradlew --no-configuration-cache -PpublicBuild=true :app:assembleRelease
+```
+
+`--stop` together with `--no-configuration-cache` is mandatory after any public build: a cached
+configuration keeps the stripped-key state and the next ordinary build fails with an unresolved
+`GEMINI_API_KEY` instead of a message about the key.
+
+The `publicBuild` artifact carries no `GEMINI_API_KEY`; a recipient who wants AI refinement enters
+their own key in Settings. The app shows its own version at Settings → about, so two downloaded files
+can be told apart; bump `versionCode` (and `versionName`) in `app/build.gradle.kts` for every new
+hand-out, otherwise Android treats the files as the same version.
+
+Recipients install it by allowing "install unknown apps" for the app they downloaded it with.
+
 ## Layout
 
 - `app/src/main/java/com/example/domain/parser` - link extraction and the
