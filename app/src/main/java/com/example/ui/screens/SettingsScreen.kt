@@ -69,6 +69,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.BuildConfig
 import com.example.domain.bidi.BidiEngine
 import com.example.ui.components.AdaptiveLabel
 import com.example.data.remote.drive.DriveAuth
@@ -783,6 +784,16 @@ fun SettingsScreen(
                 Text(
                     text = "سامانه تخصصی و بومی استخراج، پالایش هوشمند و صدور اسناد مکالمات مدل‌های بزرگ زبانی (ChatGPT، Claude، DeepSeek، Gemini، Perplexity و...)",
                     style = MaterialTheme.typography.bodySmall.copy(lineHeight = 18.sp)
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "نسخهٔ برنامه: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
+                    modifier = Modifier.testTag("settings_version_line")
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))

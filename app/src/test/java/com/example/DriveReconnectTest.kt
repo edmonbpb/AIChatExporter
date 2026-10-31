@@ -8,9 +8,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollTo
 import androidx.lifecycle.viewModelScope
 import androidx.test.core.app.ApplicationProvider
+import com.example.BuildConfig
 import com.example.data.remote.drive.DriveAuth
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.viewmodel.MainViewModel
@@ -116,6 +118,22 @@ class DriveReconnectTest {
         compose.onNodeWithTag("drive_backup_now").assertDoesNotExist()
     }
 
+    /**
+     * The APK is handed over as a file, not through a store: somebody given two of them has nothing on
+     * screen to tell which is newer, so the About card has to name the build. The sentence is rebuilt
+     * here from this build's own `BuildConfig` (the same fields `app/build.gradle.kts:38-39` sets) and
+     * never from a typed copy of the numbers, so a version bump moves the card and this assertion
+     * together. Dropping the line, hiding the name, or freezing the numbers in the screen each reddens
+     * it.
+     */
+    @Test
+    fun aboutCardNamesTheVersionThisBuildWasMadeWith() {
+        openSettings()
+
+        compose.onNodeWithTag(VERSION_TAG).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText(VERSION_LINE, substring = true).performScrollTo().assertIsDisplayed()
+    }
+
     private fun openSettings() {
         compose.setContent { MaterialTheme { SettingsScreen(viewModel) } }
     }
@@ -194,6 +212,10 @@ class DriveReconnectTest {
         const val OUTCOME_PERMISSION = "permission"
         const val OUTCOME_NETWORK = "network"
         const val OUTCOME_FAILURE = "failure"
+
+        /** The About card's identity line: tag, then the sentence as this build renders it. */
+        const val VERSION_TAG = "settings_version_line"
+        val VERSION_LINE = "نسخهٔ برنامه: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
 
         // The app's own copy, asserted verbatim so what the user reads cannot drift unnoticed.
         const val PERMISSION_MISSING =
