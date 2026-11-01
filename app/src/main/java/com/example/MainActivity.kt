@@ -49,6 +49,7 @@ import com.example.ui.components.AppBottomNavBar
 import com.example.ui.components.AppScreen
 import com.example.ui.components.AppTopBar
 import com.example.ui.navigation.isExitDoublePress
+import com.example.ui.navigation.shouldShowAuth
 import com.example.ui.navigation.shouldShowLock
 import com.example.ui.screens.AuthScreen
 import com.example.ui.screens.DistillationScreen
@@ -137,7 +138,10 @@ class MainActivity : FragmentActivity() {
                             )
                         } else {
                             Crossfade(
-                                targetState = userProfile != null || manualSignIn,
+                                targetState = shouldShowAuth(
+                                    signedIn = userProfile != null,
+                                    manualSignInRequested = manualSignIn
+                                ),
                                 label = "auth_crossfade"
                             ) { showAuth ->
                                 if (showAuth) {

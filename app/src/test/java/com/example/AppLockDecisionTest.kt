@@ -1,5 +1,6 @@
 package com.example
 
+import com.example.ui.navigation.shouldShowAuth
 import com.example.ui.navigation.shouldShowLock
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -105,5 +106,29 @@ class AppLockDecisionTest {
                 unlockedThisProcess = true
             )
         )
+    }
+
+    /**
+     * The root-screen half of the same gate, measured on `R58X30GS9QJ` (2026-11-01): a signed-in user
+     * who never asked to switch accounts must land inside the app, not back on the login form.
+     */
+    @Test
+    fun aSignedInUserWhoDidNotAskToSwitchGoesIntoTheApp() {
+        assertFalse(shouldShowAuth(signedIn = true, manualSignInRequested = false))
+    }
+
+    @Test
+    fun nobodySignedInSeesTheLoginForm() {
+        assertTrue(shouldShowAuth(signedIn = false, manualSignInRequested = false))
+    }
+
+    @Test
+    fun anAskingSignedInUserSeesTheLoginFormToo() {
+        assertTrue(shouldShowAuth(signedIn = true, manualSignInRequested = true))
+    }
+
+    @Test
+    fun anUnaskedSignInIsNeverReversedByTheManualFlag() {
+        assertTrue(shouldShowAuth(signedIn = false, manualSignInRequested = true))
     }
 }

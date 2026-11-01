@@ -219,7 +219,7 @@ Removed for good: `auth_name_input`, `auth_confirm_password_input`, `email_demo_
    - `deviceCredentialAvailable` = `getSystemService(KeyguardManager::class.java)?.isDeviceSecure == true`.
    - Root composition, inside the existing theme/providers:
      ```kotlin
-     val showLock = shouldShowLock(appLockEnabled, deviceCredentialAvailable, sessionUnlocked)
+     val showLock = shouldShowLock(appLockEnabled, deviceCredentialAvailable, sessionUnlocked) && !manualSignIn
      if (showLock) {
          LockScreen(
              onUnlock = { presentUnlock { viewModel.unlockSession() } },
@@ -227,7 +227,7 @@ Removed for good: `auth_name_input`, `auth_confirm_password_input`, `email_demo_
              onRemoveLock = { presentUnlock { viewModel.setAppLockEnabled(false); viewModel.unlockSession() } }
          )
      } else {
-         Crossfade(targetState = userProfile != null || manualSignIn, label = "auth_crossfade") { showAuth ->
+         Crossfade(targetState = shouldShowAuth(signedIn = userProfile != null, manualSignInRequested = manualSignIn), label = "auth_crossfade") { showAuth ->
              if (showAuth) AuthScreen(
                  viewModel = viewModel,
                  onQuickUnlock = if (appLockEnabled && manualSignIn) {
@@ -237,7 +237,12 @@ Removed for good: `auth_name_input`, `auth_confirm_password_input`, `email_demo_
          }
      }
      ```
-     (`manualSignIn` is the collected `lockManualSignIn`.)
+     (`manualSignIn` is the collected `lockManualSignIn`, and `shouldShowAuth(signedIn, manualSignInRequested) = !signedIn || manualSignInRequested` lives in `AppLockPolicy.kt`.)
+
+     > **Corrected 2026-11-01 after the handset:** this contract first said `targetState = userProfile != null || manualSignIn`
+     > and fed that boolean straight to `if (showAuth) AuthScreen(...)`, which is inverted — a signed-in user was kept on the
+     > login form. The register row is `B-۴۶`. The decision is now a named pure function with its own tests, because no JVM
+     > test composes the root of `MainActivity`.
    - `presentUnlock(onSuccess)` — a private method on the activity:
      ```kotlin
      private fun presentUnlock(onSuccess: () -> Unit) {
