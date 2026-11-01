@@ -19,6 +19,16 @@ class AuthErrorTranslationTest {
     }
 
     @Test
+    fun theCombinedLoginFailureIsNamedAndBlamesNeitherHalf() {
+        // Enumeration protection makes this the only code a password check answers with, so the
+        // sentence must stay true whether the address is unknown or the password is wrong.
+        val sentence = authErrorFa("ERROR_INVALID_LOGIN_CREDENTIAL")
+        assertNotEquals("ERROR_INVALID_LOGIN_CREDENTIAL", sentence)
+        assertTrue(sentence.contains("ایمیل"))
+        assertTrue(sentence.contains("رمز"))
+    }
+
+    @Test
     fun anUnknownCodeStillAnswersInPersianAndBlamesNothingSpecific() {
         val sentence = authErrorFa("ERROR_SOMETHING_NEW")
         assertTrue(sentence.isNotBlank())

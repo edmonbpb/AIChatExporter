@@ -36,6 +36,9 @@ internal fun authErrorFa(errorCode: String?): String = when (errorCode) {
     "ERROR_WEAK_PASSWORD" -> "رمز عبور ضعیف است؛ حداقل ۶ کاراکتر لازم دارد."
     "ERROR_USER_NOT_FOUND" -> "چنین حسابی در این برنامه ثبت نشده است."
     "ERROR_WRONG_PASSWORD" -> "رمز عبور درست نبود."
+    // Enumeration protection makes this the only code a password check answers with, and it covers
+    // both "no such account" and "wrong password" - so the sentence has to stay true for both.
+    "ERROR_INVALID_LOGIN_CREDENTIAL" -> "ایمیل یا رمز عبور درست نبود."
     "ERROR_INVALID_CREDENTIAL" -> "ایمیل یا رمز عبور قابل استفاده نبود."
     "ERROR_USER_DISABLED" -> "این حساب غیرفعال شده است."
     "ERROR_NETWORK_REQUEST_FAILED" -> "ارتباط با سرویس حساب برقرار نشد؛ اینترنت را بررسی کن."
@@ -59,7 +62,7 @@ class FirebaseAccountService(private val auth: FirebaseAuth) : AccountService {
         return try {
             val user = await(auth.createUserWithEmailAndPassword(address, password)).user
                 ?: return AccountOutcome.Failed(UNKNOWN_FA)
-            sendVerificationTo(user)
+            sendVerificationBestEffort(user)
             AccountOutcome.NeedsVerification(user.email ?: address)
         } catch (e: FirebaseAuthException) {
             AccountOutcome.Failed(authErrorFa(e.errorCode))
@@ -81,7 +84,7 @@ class FirebaseAccountService(private val auth: FirebaseAuth) : AccountService {
             } else {
                 // The account exists and the password was right, so the wait is on the mail, not on
                 // the credentials. Sending again here is what makes the screen's own mail current.
-                sendVerificationTo(user)
+                sendVerificationBestEffort(user)
                 AccountOutcome.NeedsVerification(user.email ?: address)
             }
         } catch (e: FirebaseAuthException) {
@@ -100,6 +103,8 @@ class FirebaseAccountService(private val auth: FirebaseAuth) : AccountService {
             AccountOutcome.EmailSent
         } catch (e: FirebaseAuthException) {
             AccountOutcome.Failed(authErrorFa(e.errorCode))
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             AccountOutcome.Failed(UNKNOWN_FA)
         }
@@ -110,6 +115,8 @@ class FirebaseAccountService(private val auth: FirebaseAuth) : AccountService {
         return try {
             await(user.reload())
             user.isEmailVerified
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             false
         }
@@ -142,6 +149,22 @@ class FirebaseAccountService(private val auth: FirebaseAuth) : AccountService {
      */
     private suspend fun sendVerificationTo(user: com.google.firebase.auth.FirebaseUser) {
         await(user.sendEmailVerification())
+    }
+
+    /**
+     * On the credential paths the mail is a follow-up, not the fact being reported: `NeedsVerification`
+     * stays true when the provider refuses to send it (its own rate limit), and claiming the account
+     * was not made would send the user into a retry that answers "already registered". A cancelled
+     * caller is still the one thing that stops the answer.
+     */
+    private suspend fun sendVerificationBestEffort(user: com.google.firebase.auth.FirebaseUser) {
+        try {
+            sendVerificationTo(user)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // the account's verification state is what the outcome claims, not the mail's delivery
+        }
     }
 
     private suspend fun <T> await(task: Task<T>): T = suspendCancellableCoroutine { cont ->
