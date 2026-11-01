@@ -13,6 +13,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollTo
 import androidx.lifecycle.viewModelScope
 import androidx.test.core.app.ApplicationProvider
+import com.example.data.remote.auth.AccountOutcome
 import com.example.data.remote.drive.DriveAuth
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.viewmodel.MainViewModel
@@ -96,7 +97,7 @@ class DriveGuestCardTest {
 
     @Test
     fun guestCardAsksForAGoogleSignInInsteadOfBlamingAMissingPermission() {
-        viewModel = MainViewModel(application)
+        viewModel = MainViewModel(application, FakeAccountService())
         compose.setContent { MaterialTheme { SettingsScreen(viewModel) } }
 
         awaitStatus(SIGN_IN_FIRST)
@@ -122,7 +123,7 @@ class DriveGuestCardTest {
         // opening Settings re-probes the Drive connection on its own. Guest mode is retired, so the
         // session is put on disk before the view model starts, the way a guest device already holds it.
         seedAppSession(guest = true)
-        viewModel = MainViewModel(application)
+        viewModel = MainViewModel(application, FakeAccountService())
         compose.setContent { MaterialTheme { SettingsScreen(viewModel) } }
 
         awaitStatus(SIGN_IN_FIRST)
@@ -144,7 +145,7 @@ class DriveGuestCardTest {
         seedCachedGoogleAccount()
         assertNotNull("fixture: Google's local cache holds an account", DriveAuth.lastAccount(application))
         seedAppSession(guest = true)
-        viewModel = MainViewModel(application)
+        viewModel = MainViewModel(application, FakeAccountService())
         compose.setContent { MaterialTheme { SettingsScreen(viewModel) } }
 
         awaitStatus(SIGN_IN_FIRST)
@@ -170,7 +171,7 @@ class DriveGuestCardTest {
         seedCachedGoogleAccount()
         seedAppSession(guest = false)
         assertNotNull("fixture: Google's local cache holds an account", DriveAuth.lastAccount(application))
-        viewModel = MainViewModel(application)
+        viewModel = MainViewModel(application, FakeAccountService())
         assertFalse("fixture: the app is in a session, not a guest one", viewModel.userProfile.value?.isGuest == true)
         compose.setContent { MaterialTheme { SettingsScreen(viewModel) } }
 
@@ -197,7 +198,14 @@ class DriveGuestCardTest {
         // with no sentence inherited from the old one) and no longer the card side of it.
         seedCachedGoogleAccount()
         seedAppSession(guest = false)
-        viewModel = MainViewModel(application)
+        // Sign-in answers through the seam: the seam must open the new session or there is no
+        // session change to measure. The card-reset below is what the test is really about.
+        viewModel = MainViewModel(
+            application,
+            FakeAccountService().apply {
+                signInAnswer = AccountOutcome.SignedIn(NEW_SESSION_EMAIL, "uid-4")
+            }
+        )
         compose.setContent { MaterialTheme { SettingsScreen(viewModel) } }
         awaitStatus(CONSENT_MISSING)
         compose.onNodeWithText(CONSENT_MISSING).performScrollTo().assertIsDisplayed()
@@ -207,7 +215,7 @@ class DriveGuestCardTest {
         // nothing re-probes Drive, so only that reset can take the old cause off the screen.
         compose.runOnIdle {
             viewModel.loginWithEmail(
-                email = "other-session@example.invalid",
+                email = NEW_SESSION_EMAIL,
                 password = "pass",
                 onSuccess = {},
                 onError = { fail("the fixture login must not fail: $it") }
@@ -219,7 +227,7 @@ class DriveGuestCardTest {
         assertFalse("fixture: the session changed", viewModel.userProfile.value?.isGuest == true)
         assertEquals(
             "fixture: the new session is the one this test signed in",
-            "other-session@example.invalid",
+            NEW_SESSION_EMAIL,
             viewModel.userProfile.value?.email
         )
         assertNull("the previous session's cause must not outlive it", viewModel.driveBackupStatus.value)
@@ -361,6 +369,7 @@ class DriveGuestCardTest {
         const val GOOGLE_ACCOUNT_TYPE = "com.google"
 
         const val SEED_EMAIL = "drive-guest-card@example.invalid"
+        const val NEW_SESSION_EMAIL = "other-session@example.invalid"
         const val ACCOUNT_KEY = "cached-guest-card-account"
         const val APP_SESSION_ID = "app-session-under-test"
         const val RECOVERY_ACTION = "com.example.test.DRIVE_RECOVERY"

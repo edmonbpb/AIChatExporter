@@ -23,7 +23,11 @@ import com.example.data.model.ExportRecord
 import com.example.data.model.PlatformPreset
 import com.example.data.model.TextDirection
 import com.example.data.model.UserProfile
+import com.example.data.remote.auth.ACCOUNT_UNAVAILABLE_FA
+import com.example.data.remote.auth.AccountOutcome
+import com.example.data.remote.auth.AccountService
 import com.example.data.remote.auth.GoogleAuthManager
+import com.example.data.remote.auth.accountServiceFor
 import com.example.data.remote.drive.DriveAuth
 import com.example.data.remote.auth.GoogleSignInOutcome
 import com.example.data.remote.auth.messageFa
@@ -43,7 +47,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -133,6 +136,17 @@ private const val DRIVE_CONSENT_MISSING_FA =
 private const val DRIVE_SIGN_IN_FIRST_FA =
     "اول با حسابِ گوگل وارد شو، بعد برنامه را به درایو وصل کن."
 
+// The account roads' own sentences, in one greppable block beside the Drive ones: every Persian line
+// the auth flow may show is written here once, and nowhere else in the file.
+private const val SIGN_IN_DONE_FA = "ورود به حساب با موفقیت انجام شد ✨"
+private const val SIGN_UP_DONE_FA = "حساب ساخته شد؛ حالا ایمیل را تأیید کن."
+private const val VERIFICATION_RESENT_FA = "ایمیل تأیید دوباره فرستاده شد."
+private const val VERIFICATION_DONE_FA = "ایمیل تأیید شد؛ حساب باز شد."
+private const val VERIFICATION_LEFT_FA = "از تأیید ایمیل بیرون آمدی؛ برای ادامه دوباره وارد شو."
+private const val PASSWORD_RESET_SENT_FA = "راهنمای تغییر رمز به ایمیل تو فرستاده شد."
+private const val ROLE_ORGANISATION = "کاربر سازمان"
+private const val ROLE_NEW_MEMBER = "کاربر سازمانی جدید"
+
 /**
  * The value-carrying branch of [GoogleAuthManager.signInWithGoogle] on its own, so a JVM test can see
  * that a real profile reaches the store without a Play Services device. Any other outcome persists
@@ -147,7 +161,16 @@ internal fun applyGoogleSignInOutcome(
     return profile
 }
 
-class MainViewModel(application: Application) : AndroidViewModel(application) {
+class MainViewModel(
+    application: Application,
+    private val account: AccountService = accountServiceFor(application)
+) : AndroidViewModel(application) {
+
+    // `by viewModels()` in `MainActivity` builds this class by asking the JVM for a constructor whose
+    // only parameter is the Application, and a Kotlin default value is not such a constructor once the
+    // bytecode is written. This second door is what the framework walks on a handset; tests and the
+    // root screens walk the first one with an account of their own.
+    constructor(application: Application) : this(application, accountServiceFor(application))
 
     private val db = AppDatabase.getInstance(application)
     private val chatDao = db.chatDao()
@@ -172,6 +195,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val appLockEnabled = MutableStateFlow(prefs.getBoolean("app_lock_enabled", false))
     val sessionUnlocked = MutableStateFlow(false)
     val lockManualSignIn = MutableStateFlow(false)
+
+    // The address whose confirmation is still outstanding. Stored, because the wait outlives this
+    // process: the mail is opened in another app, and the owner may close this one before tapping the
+    // link. An empty value means no wait, so a restored null never parks anyone on a blank screen.
+    private val _pendingVerification = MutableStateFlow(
+        prefs.getString("pending_verification_email", null)?.takeIf { it.isNotBlank() }
+    )
+    val pendingVerification: StateFlow<String?> = _pendingVerification.asStateFlow()
+
+    // Set by the deliberate double-back exit and read once by the next cold start: the account may
+    // still be on this device, but the owner asked to be out of the app.
+    private val _signInRequiredOnStart = MutableStateFlow(prefs.getBoolean("exit_requires_login", false))
+    val signInRequiredOnStart: StateFlow<Boolean> = _signInRequiredOnStart.asStateFlow()
 
     // Navigation & Screen
     private val _currentScreen = MutableStateFlow(AppScreen.IMPORT)
@@ -533,48 +569,169 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun loginWithEmail(email: String, password: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+    fun loginWithEmail(
+        email: String,
+        password: String,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
         viewModelScope.launch {
-            delay(800)
-            if (password.length < 4) {
-                onError("طول گذرواژه باید حداقل ۴ کاراکتر باشد.")
-                return@launch
+            when (val outcome = account.signIn(email, password)) {
+                is AccountOutcome.SignedIn -> {
+                    openSession(outcome.email, outcome.uid, ROLE_ORGANISATION)
+                    setPendingVerification(null)
+                    clearSignInRequirement()
+                    _userMessage.value = SIGN_IN_DONE_FA
+                    onSuccess()
+                }
+                is AccountOutcome.NeedsVerification -> {
+                    setPendingVerification(outcome.email)
+                    onSuccess()
+                }
+                is AccountOutcome.Failed -> onError(outcome.messageFa)
+                AccountOutcome.EmailSent -> onError(ACCOUNT_UNAVAILABLE_FA)
+                AccountOutcome.Unavailable -> onError(ACCOUNT_UNAVAILABLE_FA)
             }
-            val profile = UserProfile(
-                id = UUID.randomUUID().toString(),
-                name = displayNameFromEmail(email),
-                email = email,
-                isGuest = false,
-                isGoogleDriveLinked = false,
-                role = "کاربر سازمان"
-            )
-            persistUser(profile)
-            _userProfile.value = profile
-            _userMessage.value = "ورود به حساب با موفقیت انجام شد ✨"
-            onSuccess()
         }
     }
 
-    fun registerWithEmail(email: String, password: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+    fun registerWithEmail(
+        email: String,
+        password: String,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
         viewModelScope.launch {
-            delay(900)
-            if (password.length < 4) {
-                onError("طول گذرواژه باید حداقل ۴ کاراکتر باشد.")
-                return@launch
+            when (val outcome = account.register(email, password)) {
+                is AccountOutcome.NeedsVerification -> {
+                    // No session is opened here. The owner is on the other side of the mail, and the
+                    // workspace stays behind the wait screen until the provider says the address is
+                    // theirs.
+                    setPendingVerification(outcome.email)
+                    onSuccess()
+                }
+                is AccountOutcome.SignedIn -> {
+                    openSession(outcome.email, outcome.uid, ROLE_NEW_MEMBER)
+                    clearSignInRequirement()
+                    _userMessage.value = SIGN_UP_DONE_FA
+                    onSuccess()
+                }
+                is AccountOutcome.Failed -> onError(outcome.messageFa)
+                AccountOutcome.EmailSent -> onError(ACCOUNT_UNAVAILABLE_FA)
+                AccountOutcome.Unavailable -> onError(ACCOUNT_UNAVAILABLE_FA)
             }
-            val profile = UserProfile(
-                id = UUID.randomUUID().toString(),
-                name = displayNameFromEmail(email),
-                email = email,
-                isGuest = false,
-                isGoogleDriveLinked = false,
-                role = "کاربر سازمانی جدید"
-            )
-            persistUser(profile)
-            _userProfile.value = profile
-            _userMessage.value = "حساب کاربری جدید ایجاد و فعال گردید 🎉"
-            onSuccess()
         }
+    }
+
+    /**
+     * One place builds the profile a confirmed address earns, so the sign-in road, the road that came
+     * back from the mail, and the register road that needs no wait cannot drift apart.
+     */
+    private fun openSession(email: String, uid: String, role: String) {
+        val profile = UserProfile(
+            id = uid,
+            name = displayNameFromEmail(email),
+            email = email,
+            isGuest = false,
+            isGoogleDriveLinked = false,
+            role = role
+        )
+        persistUser(profile)
+        _userProfile.value = profile
+    }
+
+    fun setPendingVerification(email: String?) {
+        val kept = email?.trim()?.takeIf { it.isNotEmpty() }
+        _pendingVerification.value = kept
+        prefs.edit().apply {
+            if (kept == null) remove("pending_verification_email")
+            else putString("pending_verification_email", kept)
+        }.apply()
+    }
+
+    fun resendVerificationEmail(onSent: () -> Unit, onError: (String) -> Unit) {
+        viewModelScope.launch {
+            when (val outcome = account.sendVerification()) {
+                AccountOutcome.EmailSent -> {
+                    _userMessage.value = VERIFICATION_RESENT_FA
+                    onSent()
+                }
+                is AccountOutcome.Failed -> onError(outcome.messageFa)
+                else -> onError(ACCOUNT_UNAVAILABLE_FA)
+            }
+        }
+    }
+
+    /**
+     * Asks the provider what it knows now. A yes opens the session and takes the wait screen away; a
+     * no is not an error and says so quietly, because the mail may simply not have been tapped yet.
+     */
+    fun checkVerificationNow(
+        onVerified: () -> Unit,
+        onStillPending: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        val address = _pendingVerification.value ?: return onStillPending()
+        viewModelScope.launch {
+            if (account.isEmailVerified()) {
+                setPendingVerification(null)
+                // A confirmation that came back from the mail carries no credential object to read an
+                // id off, so the address stands in for it: it is the same key the profile was written
+                // under at register time.
+                openSession(address, uid = address, role = ROLE_ORGANISATION)
+                clearSignInRequirement()
+                _userMessage.value = VERIFICATION_DONE_FA
+                onVerified()
+            } else {
+                onStillPending()
+            }
+        }
+    }
+
+    /** Back to the form: the half session goes, so the next attempt starts from a clean door. */
+    fun leaveVerificationWait() {
+        setPendingVerification(null)
+        account.signOut()
+        _userProfile.value = null
+        clearAccountPrefs()
+        resetSession()
+        _userMessage.value = VERIFICATION_LEFT_FA
+    }
+
+    fun requestPasswordReset(
+        email: String,
+        onSent: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            when (val outcome = account.sendPasswordReset(email)) {
+                AccountOutcome.EmailSent -> {
+                    _userMessage.value = PASSWORD_RESET_SENT_FA
+                    onSent()
+                }
+                is AccountOutcome.Failed -> onError(outcome.messageFa)
+                else -> onError(ACCOUNT_UNAVAILABLE_FA)
+            }
+        }
+    }
+
+    fun requireSignInOnNextStart() {
+        prefs.edit().putBoolean("exit_requires_login", true).apply()
+        _signInRequiredOnStart.value = true
+    }
+
+    fun clearSignInRequirement() {
+        _signInRequiredOnStart.value = false
+        prefs.edit().remove("exit_requires_login").apply()
+    }
+
+    /**
+     * The consequence of the back button's second press: remember that the next start must show the
+     * form, then let the caller finish the task. The account itself stays on the device so the
+     * security offer at the door has something to unlock.
+     */
+    fun markHardExit() {
+        requireSignInOnNextStart()
     }
 
     /** Keeps the login form's address, not the password: clearing the box clears the key too. */
@@ -629,11 +786,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         // Turning the switch on happens behind the device lock that was just answered, so the session
         // that made the choice is already unlocked.
         if (enabled) sessionUnlocked.value = true
+        // Answering the device lock is the owner proving who they are, which is also the answer to the
+        // exit gate this same owner set: the form is not shown again on the next start.
+        if (enabled) clearSignInRequirement()
     }
 
     fun unlockSession() {
         sessionUnlocked.value = true
         lockManualSignIn.value = false
+        clearSignInRequirement()
     }
 
     fun requestManualSignIn() {
@@ -799,6 +960,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearUserMessage() {
         _userMessage.value = null
+    }
+
+    /**
+     * The one door an account road uses to put a sentence on the Snackbar without clearing the field
+     * errors a form is still showing: the screens already hold the message, they only need it published.
+     */
+    fun reportAuthError(message: String) {
+        _userMessage.value = message
     }
 
     fun showMessage(msg: String) {

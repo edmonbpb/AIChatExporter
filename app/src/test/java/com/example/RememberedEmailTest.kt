@@ -12,6 +12,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.lifecycle.viewModelScope
 import androidx.test.core.app.ApplicationProvider
+import com.example.data.remote.auth.AccountOutcome
 import com.example.ui.screens.AuthScreen
 import com.example.ui.viewmodel.MainViewModel
 import kotlinx.coroutines.cancel
@@ -110,8 +111,18 @@ class RememberedEmailTest {
         }
     }
 
+    /**
+     * Login goes through the account seam now, so every view model in this class gets the fake: the
+     * remembered-address test signs in and the seam must answer with a session for this class's
+     * address, the way it did when the form succeeded for any password.
+     */
     private fun newViewModel(): MainViewModel =
-        MainViewModel(application).also { viewModels += it }
+        MainViewModel(
+            application,
+            FakeAccountService().apply {
+                signInAnswer = AccountOutcome.SignedIn(SAVED_EMAIL, "uid-2")
+            }
+        ).also { viewModels += it }
 
     private fun authPrefs() = application.getSharedPreferences(AUTH_PREFS, Context.MODE_PRIVATE)
 

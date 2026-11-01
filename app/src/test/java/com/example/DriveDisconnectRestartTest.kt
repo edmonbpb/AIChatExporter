@@ -12,6 +12,8 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performScrollTo
 import androidx.lifecycle.viewModelScope
 import androidx.test.core.app.ApplicationProvider
+import com.example.data.remote.auth.AccountOutcome
+import com.example.data.remote.auth.AccountService
 import com.example.data.remote.drive.DriveAuth
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.viewmodel.MainViewModel
@@ -69,9 +71,14 @@ class DriveDisconnectRestartTest {
     private lateinit var authPrefs: SharedPreferences
     private val created = mutableListOf<MainViewModel>()
 
-    /** The only seam between "this process" and "a new process": a freshly built view model. */
-    private fun newViewModel(): MainViewModel =
-        MainViewModel(application).also { created += it }
+    /**
+     * The only seam between "this process" and "a new process": a freshly built view model. The
+     * account seam gets the fake everywhere - without the injection the real service throws inside
+     * a launched coroutine on this JVM, and the exception surfaces as an uncaught failure in a
+     * later test of the class.
+     */
+    private fun newViewModel(account: AccountService = FakeAccountService()): MainViewModel =
+        MainViewModel(application, account).also { created += it }
 
     @Before
     fun setUp() {
@@ -146,19 +153,24 @@ class DriveDisconnectRestartTest {
 
     @Test
     fun aNewSessionInheritsNoDisconnectDecision() {
-        val viewModel = newViewModel()
+        // Sign-in answers through the seam, and it must answer "signed in" or no new session exists
+        // to inherit anything; the card-reset path below is what the test is really measuring.
+        val account = FakeAccountService().apply {
+            signInAnswer = AccountOutcome.SignedIn(NEW_SESSION_EMAIL, "uid-3")
+        }
+        val viewModel = newViewModel(account)
         viewModel.disconnectGoogleAccount()
 
-        // The email login carries an artificial delay(800): walk the paused main looper past it.
+        // The coroutine the login launches runs while the paused main looper is walked forward.
         viewModel.loginWithEmail(
-            email = "next-session@example.invalid",
+            email = NEW_SESSION_EMAIL,
             password = "pass",
             onSuccess = {},
             onError = { fail("the fixture login must not fail: $it") }
         )
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(1_200))
 
-        assertEquals("next-session@example.invalid", viewModel.userProfile.value?.email)
+        assertEquals(NEW_SESSION_EMAIL, viewModel.userProfile.value?.email)
         assertFalse("a new session inherits no disconnect from the old one",
             authPrefs.getBoolean("drive_disconnected", false))
     }
@@ -294,6 +306,7 @@ class DriveDisconnectRestartTest {
         const val GOOGLE_STORAGE_FIELD = "zab"
 
         const val SEED_EMAIL = "drive-disconnect-restart@example.invalid"
+        const val NEW_SESSION_EMAIL = "next-session@example.invalid"
         const val ACCOUNT_KEY = "disconnect-restart-account"
         const val APP_SESSION_ID = "app-session-under-test"
     }

@@ -14,6 +14,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.lifecycle.viewModelScope
 import androidx.test.core.app.ApplicationProvider
+import com.example.data.remote.auth.AccountOutcome
 import com.example.ui.screens.AuthScreen
 import com.example.ui.viewmodel.MainViewModel
 import kotlinx.coroutines.cancel
@@ -99,7 +100,14 @@ class AuthScreenSignupTest {
     }
 
     private fun openSignUp() {
-        viewModel = MainViewModel(application)
+        // Signup goes through the account seam now, so the fixture hands the seam an answer that
+        // really opens a session for the address this test types; the name is still derived from it.
+        viewModel = MainViewModel(
+            application,
+            FakeAccountService().apply {
+                registerAnswer = AccountOutcome.SignedIn(EMAIL, "uid-9")
+            }
+        )
         compose.setContent { MaterialTheme { AuthScreen(viewModel) } }
         compose.onNodeWithTag("tab_signup").performClick()
     }
@@ -148,6 +156,6 @@ class AuthScreenSignupTest {
         const val PASSWORD = "Secret-1234"
 
         /** The success line the view model sets, asserted verbatim so it cannot drift unnoticed. */
-        const val ACCOUNT_CREATED = "حساب کاربری جدید ایجاد و فعال گردید 🎉"
+        const val ACCOUNT_CREATED = "حساب ساخته شد؛ حالا ایمیل را تأیید کن."
     }
 }
