@@ -72,8 +72,8 @@ ChatGPT card is untouched (`docs/reports/raw/phone101-v4-library.xml`). Suite is
 - The owner signed back in with their own Google account (`sbedmon1@gmail.com`, role «کاربر گوگل») and
   reconnected Drive; the card shows the connected sentence with backup and restore available.
 - The library holds 3 conversations and 13 exported files, unchanged through every install.
-- The app lock switch is **off** — the owner removed the lock through the lock screen, which also proves
-  that path works end to end.
+- The app lock switch is **off** — the owner removed the lock through the lock screen, which also proves the path works end to end.
+- برای هر برنامه در آینده، فقط یک نسخهٔ نصب شده روی دستگاه باشد؛ نصب نسخهٔ دوم می‌تواند باعث سردرگمی و از دست رفتن داده‌ها شود.
 
 ## Not done on purpose
 
