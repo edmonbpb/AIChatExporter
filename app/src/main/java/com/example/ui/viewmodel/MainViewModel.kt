@@ -220,10 +220,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // Google's token cache outlives the revocation, so the card cannot be rebuilt from the token alone.
     private var driveRefused = backupManager.driveRefused()
     private val _driveLinked = MutableStateFlow(
-        driveLinkedAfterToken(
-            tokenMinted = DriveAuth.hasConsent(application),
-            driveRefused = driveRefused
-        )
+        // B-47: a stored disconnect is the user's own decision and it outranks Google's cached grant on
+        // this cold start - the cache still holds `drive.file` because disconnecting here never revokes
+        // consent on the Google side. Only connect (beginDriveConsent) or a new session (persistUser)
+        // takes the marker off and lets the cached grant speak again.
+        !prefs.getBoolean("drive_disconnected", false) &&
+            driveLinkedAfterToken(
+                tokenMinted = DriveAuth.hasConsent(application),
+                driveRefused = driveRefused
+            )
     )
     val driveLinked: StateFlow<Boolean> = _driveLinked.asStateFlow()
     var pendingDriveRecoveryIntent: Intent? = null
@@ -290,8 +295,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun beginDriveConsent(): Boolean {
         // Pressing connect again is the user's fresh answer: a disconnect is not a permanent lock-out,
-        // so the signed-out flag is cleared before the guard can refuse the ask.
+        // so the signed-out flag and the stored disconnect marker are cleared before the guard can
+        // refuse the ask - the marker outranked the cached grant only until this very press.
         driveSignedOut = false
+        prefs.edit().remove("drive_disconnected").apply()
         if (driveConsentPending) return false
         driveOperation?.cancel()
         driveConsentPending = true
@@ -608,7 +615,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         driveSignedOut = true
         _driveLinked.value = false
         _driveBackupStatus.value = "اتصال به گوگل قطع شد؛ حساب و داده‌های شما روی همین دستگاه مانده است."
-        prefs.edit().putBoolean("drive_linked", false).apply()
+        // The decision is stored beside drive_linked, so a new process reads it too (see _driveLinked)
+        // instead of rebuilding "connected" from Google's cache, which this call cannot revoke.
+        prefs.edit().putBoolean("drive_linked", false).putBoolean("drive_disconnected", true).apply()
     }
 
     fun setAppLockEnabled(enabled: Boolean) {
@@ -744,6 +753,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             .putBoolean("is_guest", profile.isGuest)
             .putBoolean("drive_linked", profile.isGoogleDriveLinked)
             .putString("user_role", profile.role)
+            // A new session inherits no disconnect decision from the old one: only this session's own
+            // connect press may write the marker again (disconnectGoogleAccount).
+            .remove("drive_disconnected")
             .apply()
         // Any successful sign-in is the end of the lock screen's manual-sign-in pane.
         lockManualSignIn.value = false
