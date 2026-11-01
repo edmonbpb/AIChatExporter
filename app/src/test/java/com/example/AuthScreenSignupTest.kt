@@ -112,7 +112,11 @@ class AuthScreenSignupTest {
         compose.onNodeWithTag("tab_signup").performClick()
     }
 
-    /** Registration waits 900 ms on purpose; a paused looper only runs it once the clock is moved. */
+    /**
+     * The submit's work runs on the main dispatcher and this class pauses the looper, so nothing it
+     * posted runs until the clock is moved. Advancing it is what lets the registration's coroutine
+     * resume and land the fake's answer; the production path itself waits for nothing.
+     */
     private fun idlePastTheDelay() {
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(1200))
         compose.waitForIdle()

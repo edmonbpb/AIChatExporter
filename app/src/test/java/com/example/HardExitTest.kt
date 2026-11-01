@@ -146,8 +146,8 @@ class HardExitTest {
     /**
      * The one thing a view model cannot show: which branch of the back handler writes the mark. Read
      * out of the production file, the way `LocalDistillationTest` reads its label, because the JVM
-     * cannot press Back on a composed activity. It turns red if the call is dropped or if the process
-     * is ended before the task is removed.
+     * cannot press Back on a composed activity. It turns red if the call is dropped, if the process
+     * is ended before the task is removed, or if the call stops asking about the double press.
      */
     @Test
     fun theSecondPressMarksTheExitThenRemovesTheTaskThenEndsTheProcess() {
@@ -162,6 +162,18 @@ class HardExitTest {
         assertTrue("the confirmed exit must mark the next start: $branch", mark >= 0)
         assertTrue("the confirmed exit must remove the task after the mark: $branch", remove > mark)
         assertTrue("the process must end last, or the row outlives the exit: $branch", end > remove)
+
+        // Polarity, not only order: the call must hand the policy the double-press predicate, not a
+        // literal and not its negation, or the exit fires on the first press. The predicate is named
+        // once, in `ExitPolicy.kt`, and that is where this test takes the spelling from - the argument
+        // is sliced out of the production call and compared against the file, never retyped here.
+        val openParen = branchStart + "hardExitAfterDoublePress".length
+        val argument = source.substring(openParen + 1, source.indexOf(')', openParen) + 1)
+        val predicate = productionSource(EXIT_POLICY).substringAfter("fun ").substringBefore('(')
+        assertTrue(
+            "the exit must be the confirmed double press, not a literal or its negation: $argument",
+            argument.startsWith("$predicate(")
+        )
     }
 
     /** A single press on the Import screen still only arms the exit and shows the hint. */
@@ -189,8 +201,10 @@ class HardExitTest {
     }
 
     /** `MainActivity.kt` found by walking up from the working directory, as the other source test does. */
-    private fun mainActivitySource(): String {
-        val relative = "src/main/java/com/example/MainActivity.kt"
+    private fun mainActivitySource(): String = productionSource("src/main/java/com/example/MainActivity.kt")
+
+    /** Any production file, read the same way: the tests above take their expectations from these. */
+    private fun productionSource(relative: String): String {
         var dir: File? = File(".").absoluteFile
         var source: File? = null
         while (dir != null && source == null) {
@@ -204,12 +218,15 @@ class HardExitTest {
             dir = dir.parentFile
         }
         val file: File = source
-            ?: error("MainActivity.kt was not found walking up from ${File(".").absolutePath}")
+            ?: error("$relative was not found walking up from ${File(".").absolutePath}")
         return file.readText()
     }
 
     private companion object {
         const val AUTH_PREFS = "aichat_auth_prefs"
+
+        /** Where the double-press predicate is declared; the polarity assertion reads its name here. */
+        const val EXIT_POLICY = "src/main/java/com/example/ui/navigation/ExitPolicy.kt"
 
         // An address the fake account answers with; not one of the legacy invented ones the view model
         // deliberately drops at startup.

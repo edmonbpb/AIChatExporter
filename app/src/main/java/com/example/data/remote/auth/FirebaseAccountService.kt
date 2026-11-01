@@ -48,6 +48,19 @@ internal fun authErrorFa(errorCode: String?): String = when (errorCode) {
 }
 
 /**
+ * What a reset request answers when the provider refuses. `ERROR_USER_NOT_FOUND` is masked as
+ * [AccountOutcome.EmailSent]: the reset form is the one place that must not confirm which addresses
+ * have an account here, so it answers the same for a stranger as for the owner. Every other cause
+ * keeps the provider's own sentence, because a network or rate-limit failure is not a secret.
+ *
+ * Split out of [FirebaseAccountService.sendPasswordReset] so the mask itself has a JVM witness: the
+ * whole road needs a Firebase project, this one decision does not.
+ */
+internal fun resetOutcomeFor(errorCode: String?): AccountOutcome =
+    if (errorCode == "ERROR_USER_NOT_FOUND") AccountOutcome.EmailSent
+    else AccountOutcome.Failed(authErrorFa(errorCode))
+
+/**
  * The only file in the app that imports Firebase. `build/` and `verify/` scripts and every screen go
  * through AccountService instead, so a JVM test never needs a Firebase project.
  */
@@ -131,8 +144,7 @@ class FirebaseAccountService(private val auth: FirebaseAuth) : AccountService {
         } catch (e: FirebaseAuthException) {
             // The provider answers "no such user" here for an address that never had an account, and
             // the reset mail is the one place that must not confirm which addresses exist.
-            if (e.errorCode == "ERROR_USER_NOT_FOUND") AccountOutcome.EmailSent
-            else AccountOutcome.Failed(authErrorFa(e.errorCode))
+            resetOutcomeFor(e.errorCode)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

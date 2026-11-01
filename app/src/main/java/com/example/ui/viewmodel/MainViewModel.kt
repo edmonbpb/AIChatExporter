@@ -579,8 +579,6 @@ class MainViewModel(
             when (val outcome = account.signIn(email, password)) {
                 is AccountOutcome.SignedIn -> {
                     openSession(outcome.email, outcome.uid, ROLE_ORGANISATION)
-                    setPendingVerification(null)
-                    clearSignInRequirement()
                     _userMessage.value = SIGN_IN_DONE_FA
                     onSuccess()
                 }
@@ -612,7 +610,6 @@ class MainViewModel(
                 }
                 is AccountOutcome.SignedIn -> {
                     openSession(outcome.email, outcome.uid, ROLE_NEW_MEMBER)
-                    clearSignInRequirement()
                     _userMessage.value = SIGN_UP_DONE_FA
                     onSuccess()
                 }
@@ -674,12 +671,10 @@ class MainViewModel(
         val address = _pendingVerification.value ?: return onStillPending()
         viewModelScope.launch {
             if (account.isEmailVerified()) {
-                setPendingVerification(null)
                 // A confirmation that came back from the mail carries no credential object to read an
                 // id off, so the address stands in for it: it is the same key the profile was written
                 // under at register time.
                 openSession(address, uid = address, role = ROLE_ORGANISATION)
-                clearSignInRequirement()
                 _userMessage.value = VERIFICATION_DONE_FA
                 onVerified()
             } else {
@@ -931,6 +926,13 @@ class MainViewModel(
             // connect press may write the marker again (disconnectGoogleAccount).
             .remove("drive_disconnected")
             .apply()
+        // A session that exists is a session that lifts the door. Every road that writes the account
+        // passes through here - the form, the road back from the mail, and Google's - so none of them
+        // can open a session and leave the exit mark standing. `unlockSession()` is the other road and
+        // keeps its own call: it answers the device lock for an account already on the device and
+        // writes nothing.
+        setPendingVerification(null)
+        clearSignInRequirement()
         // Any successful sign-in is the end of the lock screen's manual-sign-in pane.
         lockManualSignIn.value = false
     }
