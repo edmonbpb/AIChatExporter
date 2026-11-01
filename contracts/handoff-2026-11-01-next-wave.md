@@ -40,35 +40,34 @@ Two commits on `master`:
   turn; double back removes the task from recents (mentions of this package 12 → 0, back after a
   relaunch). Dumps: `docs/reports/raw/phone101-*.xml` (git-ignored, controller disk only).
 
-## Open — one real finding, fixed on the desk, re-check owed on the handset
+## Closed on the handset — the disconnect now survives a restart
 
 `B-۴۷` in `docs/09_DEBUG_PLAN.md`: **the disconnect did not survive a restart.** Pressing
 `قطع اتصال گوگل` dropped the card for that session, but after a full close the card rebuilt itself as
 connected, because the cold-start path derives the link from Google's own cached `drive.file` grant.
 
-Two commits close it on the desk: `5263978` stores the user's decision (`drive_disconnected`) and honours
-it in the card's opening value — **that was not enough, and only the handset proved it**: opening Settings
-asks Google again, and the cached grant answered. `872f6b4` makes the same stored decision gate the probe
+Two commits close it: `5263978` stores the user's decision (`drive_disconnected`) and honours it in the
+card's opening value — **that was not enough, and only the handset proved it**: opening Settings asks
+Google again, and the cached grant answered. `872f6b4` makes the same stored decision gate the probe
 itself (`driveSignedOut` starts from it), and only `beginDriveConsent()` lifts it. The new test renders the
 real settings screen and counts Google token calls, asserting zero; restoring the old line turns exactly
-that test red and leaves the other four Drive classes green. Suite is **218 green**.
+that test red and leaves the other four Drive classes green.
 
-Still owed: install the `versionCode=3` build on `R58X30GS9QJ` and show that after disconnect + close +
-reopen the card does **not** say connected. The handset dropped off `adb` mid-round (Windows still
-enumerates it), so this is waiting on the owner unlocking/re-authorising USB debugging.
+On `R58X30GS9QJ` with `versionCode=3`: the card showed `اتصال به گوگل درایو` before any press, and after
+`am force-stop` plus a relaunch it was still the connect button, with no backup/restore buttons
+(`docs/reports/raw/phone101-v3-card-start.xml`, `phone101-v3-afterrestart.xml`). Suite is **218 green**.
 
 ## State of the handset right now
 
-- `versionCode=2` is installed and was read on screen (`نسخهٔ برنامه: 1.0 (2)`). The `versionCode=3`
-  artifact is built and verified on disk but **not installed** — the handset left `adb` before that step.
+- `versionCode=3` is installed and was read on screen (`نسخهٔ برنامه: 1.0 (3)`); the `B-۴۷` re-check is
+  done on that same build.
 - The in-app account is the test address `qoder.test@example.com` (created while verifying remember-me),
   not the owner's Google account. Nothing of the library was lost.
-- The Drive link is **disconnected** by the owner's own test press, and the app lock switch is **off** —
+- The Drive link is **disconnected** (the owner's own test press), and the app lock switch is **off** —
   the owner removed the lock through the lock screen, which also proves that path works end to end.
   Reconnecting Drive is one press on `اتصال به گوگل درایو` plus Google's own consent, which needs the owner.
 
 ## Not done on purpose
 
-- The `versionCode=3` build is not installed and the `B-۴۷` re-check on the handset is still owed.
 - Biometric face/fingerprint were not separately exercised — the owner's handset answered the device
   credential path; the prompt covers all five authenticators in one call.
