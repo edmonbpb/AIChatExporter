@@ -57,15 +57,23 @@ On `R58X30GS9QJ` with `versionCode=3`: the card showed `اتصال به گوگل
 `am force-stop` plus a relaunch it was still the connect button, with no backup/restore buttons
 (`docs/reports/raw/phone101-v3-card-start.xml`, `phone101-v3-afterrestart.xml`). Suite is **218 green**.
 
+## Also closed — the retired model label in the library list
+
+`B-۴۸`: a conversation imported before the honesty fix still read «مدل: Universal LLM». The read-point
+scrub knew only two retired labels; the CUSTOM platform's invented one is now on the list, so the card
+falls back to the platform name. Two tests in `HonestModelLabelTest`, and the draft-store round-trip
+fixture moved to a genuinely stated model so its own assertion keeps its meaning. On the handset with
+`versionCode=4`: both 2026/10/06 cards read «مدل: سفارشی / عمومی», the string appears nowhere, and the
+ChatGPT card is untouched (`docs/reports/raw/phone101-v4-library.xml`). Suite is **220 green**.
+
 ## State of the handset right now
 
-- `versionCode=3` is installed and was read on screen (`نسخهٔ برنامه: 1.0 (3)`); the `B-۴۷` re-check is
-  done on that same build.
-- The in-app account is the test address `qoder.test@example.com` (created while verifying remember-me),
-  not the owner's Google account. Nothing of the library was lost.
-- The Drive link is **disconnected** (the owner's own test press), and the app lock switch is **off** —
-  the owner removed the lock through the lock screen, which also proves that path works end to end.
-  Reconnecting Drive is one press on `اتصال به گوگل درایو` plus Google's own consent, which needs the owner.
+- `versionCode=4` is installed; the version line reads `نسخهٔ برنامه: 1.0 (4)`.
+- The owner signed back in with their own Google account (`sbedmon1@gmail.com`, role «کاربر گوگل») and
+  reconnected Drive; the card shows the connected sentence with backup and restore available.
+- The library holds 3 conversations and 13 exported files, unchanged through every install.
+- The app lock switch is **off** — the owner removed the lock through the lock screen, which also proves
+  that path works end to end.
 
 ## Not done on purpose
 
