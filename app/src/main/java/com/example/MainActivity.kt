@@ -49,6 +49,7 @@ import androidx.fragment.app.FragmentActivity
 import com.example.ui.components.AppBottomNavBar
 import com.example.ui.components.AppScreen
 import com.example.ui.components.AppTopBar
+import com.example.ui.navigation.hardExitAfterDoublePress
 import com.example.ui.navigation.isExitDoublePress
 import com.example.ui.navigation.shouldOfferSecurityEntry
 import com.example.ui.navigation.shouldShowAuth
@@ -66,6 +67,7 @@ import com.example.ui.screens.VerificationScreen
 import com.example.ui.screens.WorkspaceScreen
 import com.example.ui.theme.AIChatExporterTheme
 import com.example.ui.viewmodel.MainViewModel
+import kotlin.system.exitProcess
 
 private val NoOpTextToolbar = object : TextToolbar {
     override val status: TextToolbarStatus = TextToolbarStatus.Hidden
@@ -376,8 +378,15 @@ fun MainAppScreen(viewModel: MainViewModel) {
             }
         } else {
             val currentTime = System.currentTimeMillis()
-            if (isExitDoublePress(currentTime, lastBackPressTime)) {
+            if (hardExitAfterDoublePress(isExitDoublePress(currentTime, lastBackPressTime))) {
+                // The second press is the exit the owner asked for, so the next start has to ask again;
+                // markHardExit writes that decision to disk and leaves the account where it is.
+                viewModel.markHardExit()
                 (context as? android.app.Activity)?.finishAndRemoveTask()
+                // The task is gone, but Android may keep the process warm and some handsets keep
+                // listing it in the task manager. Ending the process is what makes that list honest
+                // about an app the owner asked to leave. A single Home press never comes through here.
+                exitProcess(0)
             } else {
                 lastBackPressTime = currentTime
                 android.widget.Toast.makeText(
