@@ -1,13 +1,21 @@
 package com.example
 
+import android.accounts.Account
 import android.app.Application
 import android.content.Context
 import android.content.SharedPreferences
 import android.os.Looper
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performScrollTo
 import androidx.lifecycle.viewModelScope
 import androidx.test.core.app.ApplicationProvider
 import com.example.data.remote.drive.DriveAuth
+import com.example.ui.screens.SettingsScreen
 import com.example.ui.viewmodel.MainViewModel
+import com.google.android.gms.auth.GoogleAuthUtil
 import kotlinx.coroutines.cancel
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -16,14 +24,19 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.Implementation
+import org.robolectric.annotation.Implements
 import org.robolectric.annotation.LooperMode
+import org.robolectric.annotation.Resetter
 import org.robolectric.util.ReflectionHelpers
 import java.time.Duration
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * B-47 on the JVM: the backup card's disconnect used to last only until the process died, because a
@@ -31,14 +44,26 @@ import java.time.Duration
  * never revoke. The fix stores the user's decision (`drive_disconnected` in `aichat_auth_prefs`) and
  * lets it outrank the cached grant at cold start, until a connect press or a new session clears it.
  *
- * No Google token call is made here at all (the card is read straight off the view model, never
- * rendered), so nothing needs shadowing: only the real preference files and Google's real account
- * cache drive the fixture, the way `DriveReconnectTest` seeds its stale grant.
+ * The cold-start value alone was not enough and the last test here proves why: opening Settings
+ * re-probes the connection, and the probe asked Google - whose cached grant answers happily - so the
+ * card flipped back to "connected" in the very next second. Google's blocking token call is therefore
+ * shadowed here (the same single class `DriveGuestCardTest` shadows, this time answering with a
+ * token) and the last test counts its calls: with the fix a disconnected process never asks at all.
+ * The other tests read the card straight off the view model, never render it, and so never reach the
+ * call - only the real preference files and Google's real account cache drive those fixtures, the way
+ * `DriveReconnectTest` seeds its stale grant.
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
+@Config(
+    sdk = [34],
+    shadows = [DriveDisconnectRestartTest.GoogleTokenShadow::class],
+    instrumentedPackages = ["com.google.android.gms.auth.GoogleAuthUtil"]
+)
 @LooperMode(LooperMode.Mode.PAUSED)
 class DriveDisconnectRestartTest {
+
+    @get:Rule
+    val compose = createComposeRule()
 
     private lateinit var application: Application
     private lateinit var authPrefs: SharedPreferences
@@ -50,6 +75,7 @@ class DriveDisconnectRestartTest {
 
     @Before
     fun setUp() {
+        GoogleTokenShadow.reset()
         application = ApplicationProvider.getApplicationContext()
         clearAccountState()
         // The app's own session is on disk before anything starts, so "the account stays" in test 2
@@ -137,6 +163,52 @@ class DriveDisconnectRestartTest {
             authPrefs.getBoolean("drive_disconnected", false))
     }
 
+    @Test
+    fun openingSettingsAfterARestartDoesNotReProbeDriveOverTheStoredDecision() {
+        // The hole the phone showed at 18:29 on `R58X30GS9QJ` and the five tests above all missed:
+        // none of them ever opened the screen that re-probes. Here the production path is walked in
+        // full - the marker a previous process left is on disk, Google's cache still holds the
+        // drive.file grant, a fresh view model starts unlinked, and the real SettingsScreen opens,
+        // which fires `refreshDriveConnection()`. The shadow below would hand back a token if asked,
+        // so without the stored decision gating the probe the card flips back to "connected".
+        authPrefs.edit().putBoolean("drive_disconnected", true).commit()
+        val viewModel = newViewModel()
+        compose.setContent { MaterialTheme { SettingsScreen(viewModel) } }
+
+        // Give a launched probe its full chance to reach Google and back. There is no passing state
+        // to wait for here - with the fix nothing happens at all - so patience is plain wall-clock:
+        // pump the main looper toward a probe for two seconds. If the guard were missing, the
+        // shadowed token call would land on the IO thread and its answer would flip the card back on
+        // the main looper, both of which these spins drive. Landing on zero after the full window is
+        // the only answer the fix allows.
+        val askedGoogle = probeWindowPassed {
+            GoogleTokenShadow.requests.get() > 0 || viewModel.driveLinked.value
+        }
+        assertFalse("the settings screen re-probed Google over the stored decision", askedGoogle)
+        assertEquals("a disconnected process must never ask Google again",
+            0, GoogleTokenShadow.requests.get())
+        assertFalse("the stored decision must survive the screen that re-probes",
+            viewModel.driveLinked.value)
+        compose.onNodeWithTag("drive_connect_btn").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("drive_backup_now").assertDoesNotExist()
+    }
+
+    /**
+     * Pumps the main looper for a bounded wall-clock window while [leaked] is false and reports
+     * whether it ever turned true. Deliberately not `compose.waitUntil`: that helper exists to prove
+     * something *did* happen (see `DriveGuestCardTest.awaitProbe`) and throws when it does not, while
+     * this assertion needs the opposite - run out the full window proving nothing ever reached Google.
+     */
+    private fun probeWindowPassed(leaked: () -> Boolean): Boolean {
+        val deadline = System.currentTimeMillis() + 2_000L
+        while (System.currentTimeMillis() < deadline) {
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(50))
+            compose.waitForIdle()
+            if (leaked()) return true
+        }
+        return leaked()
+    }
+
     /** The real Google Play services cache file, seeded the way `DriveReconnectTest` seeds it. */
     private fun seedCachedGoogleGrant() {
         application.getSharedPreferences(SIGNIN_PREFS, Context.MODE_PRIVATE)
@@ -175,6 +247,36 @@ class DriveDisconnectRestartTest {
     private fun resetGoogleAccountCache() {
         ReflectionHelpers.setStaticField(GOOGLE_ACCOUNT_HOLDER, GOOGLE_ACCOUNT_HOLDER_FIELD, null)
         ReflectionHelpers.setStaticField(GOOGLE_STORAGE, GOOGLE_STORAGE_FIELD, null)
+    }
+
+    /**
+     * Google's blocking token request, shadowed the way `DriveGuestCardTest.GoogleTokenShadow` is -
+     * except this one answers instead of refusing: a fresh process whose probe is not gated would get
+     * a token back for the cached `drive.file` grant and the card would flip to "connected". The call
+     * count is the load-bearing assertion of the restart test: the fix is not "the answer is wrong",
+     * it is "this process never asks the question".
+     */
+    @Implements(value = GoogleAuthUtil::class, isInAndroidSdk = false)
+    class GoogleTokenShadow {
+        companion object {
+            val requests = AtomicInteger()
+
+            @JvmStatic
+            @Resetter
+            fun reset() {
+                requests.set(0)
+            }
+
+            @JvmStatic
+            @Implementation
+            @Suppress("UNUSED_PARAMETER")
+            fun getToken(context: Context, account: Account, scope: String): String {
+                requests.incrementAndGet()
+                // Google would happily mint for the cached grant - exactly what the phone showed at
+                // 18:29 - so the probe must never be allowed to reach this line.
+                return "cached-drive-file-token"
+            }
+        }
     }
 
     private companion object {

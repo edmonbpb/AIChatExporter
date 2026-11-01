@@ -236,7 +236,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val driveOperationMutex = Mutex()
     private var driveOperation: Job? = null
     private var driveConsentPending = false
-    private var driveSignedOut = false
+    // B-47: the stored user decision also gates the probe itself, not only the cold-start value above.
+    // Without this a new process answers the settings screen's refresh with Google's still-cached
+    // drive.file grant and the card flips back to "connected". beginDriveConsent() is what lifts it.
+    private var driveSignedOut = prefs.getBoolean("drive_disconnected", false)
 
     fun driveLastBackupDate(): String? = backupManager.lastBackupDate()
 
