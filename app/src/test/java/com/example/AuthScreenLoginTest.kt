@@ -12,12 +12,16 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextInput
 import androidx.lifecycle.viewModelScope
 import androidx.test.core.app.ApplicationProvider
+import com.example.data.remote.auth.AccountOutcome
 import com.example.ui.screens.AuthScreen
 import com.example.ui.viewmodel.MainViewModel
 import kotlinx.coroutines.cancel
 import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -32,7 +36,9 @@ import org.robolectric.util.ReflectionHelpers
  * ways past the address-and-password form; the owner kept only the form on the login tab and moved
  * Google account creation to the signup tab, under its own label and above the email divider. The
  * tests read the screen, not the source, because a button that merely stopped working would still be
- * a way in for anybody looking at it.
+ * a way in for anybody looking at it. The last test presses that same submit button once and then
+ * reads the two state values the root screen is built from, because which screen comes next is decided
+ * outside this class (Task 5's gate), while "no session" and "the wait is taken up" are decided here.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -42,13 +48,19 @@ class AuthScreenLoginTest {
     val compose = createComposeRule()
 
     private lateinit var application: Application
+    private val account = FakeAccountService()
     private lateinit var viewModel: MainViewModel
 
     @Before
     fun setUp() {
         application = ApplicationProvider.getApplicationContext()
         clearAccountState()
-        viewModel = MainViewModel(application)
+        // Login asks the account seam now, so this class is handed its own: the address below is
+        // answered with a session whenever a test does press submit, except where the test says
+        // otherwise. Nothing here reaches Firebase.
+        account.reset()
+        account.signInAnswer = AccountOutcome.SignedIn(SIGNED_IN_EMAIL, "uid-1")
+        viewModel = MainViewModel(application, account)
         compose.setContent { MaterialTheme { AuthScreen(viewModel) } }
     }
 
@@ -92,6 +104,33 @@ class AuthScreenLoginTest {
         compose.onNodeWithText(DIVIDER).assertDoesNotExist()
     }
 
+    /**
+     * The other half of the login road: an address that has not tapped its mail yet. Firebase answers
+     * that with `NeedsVerification`, and the view model must take up the wait without opening a
+     * session - the workspace is built from `userProfile`, so a profile here is the same as walking in
+     * past the mail. The form is driven, not the view model called, so the submit button's own wiring
+     * is inside the proof.
+     */
+    @Test
+    fun aLoginWhoseAddressAwaitsItsMailTakesTheWaitAndOpensNoSession() {
+        assertNull("fixture: this process starts with no wait on file", viewModel.pendingVerification.value)
+        account.signInAnswer = AccountOutcome.NeedsVerification(WAITING_EMAIL)
+
+        compose.onNodeWithTag("auth_email_input").performScrollTo().performTextInput(WAITING_EMAIL)
+        compose.onNodeWithTag("auth_password_input").performScrollTo().performTextInput(PASSWORD)
+        compose.onNodeWithTag("auth_submit_btn").performScrollTo().performClick()
+        compose.waitUntil(timeoutMillis = 5_000) { account.signInCalls == 1 }
+
+        // The wait is taken up under this exact address, and no session is opened beside it.
+        assertEquals(
+            "the address is the one that must answer the mail",
+            WAITING_EMAIL,
+            viewModel.pendingVerification.value
+        )
+        assertNull("a login that needs verification must not reach the workspace", viewModel.userProfile.value)
+        assertEquals(1, account.signInCalls)
+    }
+
     /** Google's two process-wide caches, dropped the way `DriveGuestCardTest` drops them. */
     private fun clearAccountState() {
         application.getSharedPreferences(SIGNIN_PREFS, Context.MODE_PRIVATE).edit().clear().commit()
@@ -114,6 +153,11 @@ class AuthScreenLoginTest {
 
         const val GOOGLE_ACCOUNT_HOLDER_FIELD = "zbd"
         const val GOOGLE_STORAGE_FIELD = "zab"
+
+        // Addresses this class answers with, never a real account: the fake holds both of them.
+        const val SIGNED_IN_EMAIL = "signed.in@example.com"
+        const val WAITING_EMAIL = "still.waiting@example.com"
+        const val PASSWORD = "Secret-1234"
 
         // The screen's own copy, asserted verbatim so what the user reads cannot drift unnoticed.
         const val LOGIN_TAB = "ورود به برنامه"
