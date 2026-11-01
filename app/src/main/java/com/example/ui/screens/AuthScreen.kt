@@ -74,6 +74,7 @@ import com.example.ui.viewmodel.MainViewModel
 fun AuthScreen(
     viewModel: MainViewModel,
     onQuickUnlock: (() -> Unit)? = null,
+    onForgotPassword: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var selectedTab by remember { mutableIntStateOf(0) } // 0 = Login, 1 = Sign Up
@@ -82,6 +83,7 @@ fun AuthScreen(
     var rememberMe by remember { mutableStateOf(false) }
     var passwordVisible by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
+    var resetRequested by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     val context = androidx.compose.ui.platform.LocalContext.current
 
@@ -416,6 +418,41 @@ fun AuthScreen(
                             AdaptiveLabel(
                                 text = if (selectedTab == 0) "ورود به برنامه" else "ساخت حساب کاربری",
                                 style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                            )
+                        }
+                    }
+
+                    // The owner who cannot recall the password still has a way in. Login tab only: the
+                    // signup tab creates an account, so a reset link there would be a lie. Nothing about
+                    // the address's shape or the password's length is re-checked here - the account road
+                    // (Task 2) owns those rules and answers with the one sentence the owner is shown.
+                    if (selectedTab == 0 && onForgotPassword != null) {
+                        TextButton(
+                            onClick = {
+                                resetRequested = true
+                                onForgotPassword(email)
+                            },
+                            modifier = Modifier
+                                .padding(top = 4.dp)
+                                .testTag("auth_forgot_password_btn")
+                        ) {
+                            // maxLines = 2 because AdaptiveLabel's own default is one line, and one line
+                            // cuts the Persian sentence off with an ellipsis.
+                            AdaptiveLabel(
+                                text = "رمز عبور را فراموش کرده‌ام",
+                                maxLines = 2
+                            )
+                        }
+
+                        if (resetRequested) {
+                            Text(
+                                text = "راهنمای تغییر رمز به آن نشانی فرستاده شد؛ از ایمیل استفاده کن.",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
+                                modifier = Modifier
+                                    .padding(top = 8.dp)
+                                    .testTag("auth_reset_hint")
                             )
                         }
                     }

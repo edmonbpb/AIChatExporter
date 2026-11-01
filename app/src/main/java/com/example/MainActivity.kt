@@ -2,6 +2,7 @@ package com.example
 
 import android.app.KeyguardManager
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.compose.BackHandler
@@ -49,15 +50,19 @@ import com.example.ui.components.AppBottomNavBar
 import com.example.ui.components.AppScreen
 import com.example.ui.components.AppTopBar
 import com.example.ui.navigation.isExitDoublePress
+import com.example.ui.navigation.shouldOfferSecurityEntry
 import com.example.ui.navigation.shouldShowAuth
 import com.example.ui.navigation.shouldShowLock
+import com.example.ui.navigation.shouldShowVerification
 import com.example.ui.screens.AuthScreen
 import com.example.ui.screens.DistillationScreen
 import com.example.ui.screens.ExportStudioScreen
 import com.example.ui.screens.ImportScreen
 import com.example.ui.screens.LibraryScreen
 import com.example.ui.screens.LockScreen
+import com.example.ui.screens.SecurityEntryDialog
 import com.example.ui.screens.SettingsScreen
+import com.example.ui.screens.VerificationScreen
 import com.example.ui.screens.WorkspaceScreen
 import com.example.ui.theme.AIChatExporterTheme
 import com.example.ui.viewmodel.MainViewModel
@@ -117,16 +122,37 @@ class MainActivity : FragmentActivity() {
                             .fillMaxSize()
                             .semantics { testTagsAsResourceId = true }
                     ) {
+                        // Three rules, one order, all decided outside a composable (AuthGatePolicy):
+                        // the owner's own device lock first, then the mail that has not been answered,
+                        // then the ordinary form-or-workspace choice.
+                        val signInRequired by viewModel.signInRequiredOnStart.collectAsState()
+                        val pendingVerificationEmail by viewModel.pendingVerification.collectAsState()
+
                         // The manual-sign-in request is honoured only for the locked-out user who asked
                         // for it: without this term the lock screen would sit forever in front of the
                         // auth form it is supposed to reveal.
-                        val showLock = shouldShowLock(
+                        val lockInWay = shouldShowLock(
                             appLockEnabled,
                             deviceCredentialAvailable,
                             sessionUnlocked
                         ) && !manualSignIn
-                        if (showLock) {
-                            LockScreen(
+
+                        // A local read of the pending address, so the null test below smart-casts it and
+                        // the wait screen is handed a non-null address without an assertion operator.
+                        val waitingFor = pendingVerificationEmail
+
+                        // Neither button closes this popup by itself, so the choice is remembered here:
+                        // once the owner has answered it, it does not come back on the next recomposition.
+                        var securityOfferDismissed by remember { mutableStateOf(false) }
+                        val showSecurityOffer = !securityOfferDismissed && shouldOfferSecurityEntry(
+                            signInRequiredOnStart = signInRequired,
+                            manualSignInRequested = manualSignIn,
+                            appLockEnabled = appLockEnabled,
+                            deviceCredentialAvailable = deviceCredentialAvailable
+                        )
+
+                        when {
+                            lockInWay -> LockScreen(
                                 onUnlock = { presentUnlock { viewModel.unlockSession() } },
                                 onManualSignIn = { viewModel.requestManualSignIn() },
                                 onRemoveLock = {
@@ -136,23 +162,52 @@ class MainActivity : FragmentActivity() {
                                     }
                                 }
                             )
-                        } else {
-                            Crossfade(
-                                targetState = shouldShowAuth(
-                                    signedIn = userProfile != null,
-                                    manualSignInRequested = manualSignIn
-                                ),
-                                label = "auth_crossfade"
-                            ) { showAuth ->
-                                if (showAuth) {
-                                    AuthScreen(
-                                        viewModel = viewModel,
-                                        onQuickUnlock = if (appLockEnabled && manualSignIn) {
-                                            { presentUnlock { viewModel.unlockSession() } }
-                                        } else null
-                                    )
-                                } else {
-                                    MainAppScreen(viewModel = viewModel)
+
+                            waitingFor != null && shouldShowVerification(waitingFor, lockInWay) ->
+                                VerificationScreen(viewModel = viewModel, email = waitingFor)
+
+                            else -> {
+                                Crossfade(
+                                    targetState = shouldShowAuth(
+                                        signedIn = userProfile != null,
+                                        manualSignInRequested = manualSignIn,
+                                        signInRequiredOnStart = signInRequired
+                                    ),
+                                    label = "auth_crossfade"
+                                ) { showAuth ->
+                                    if (showAuth) {
+                                        AuthScreen(
+                                            viewModel = viewModel,
+                                            onQuickUnlock = if (appLockEnabled && manualSignIn) {
+                                                { presentUnlock { viewModel.unlockSession() } }
+                                            } else null,
+                                            onForgotPassword = { address ->
+                                                viewModel.requestPasswordReset(
+                                                    email = address,
+                                                    // The view model already shows the "guide sent"
+                                                    // sentence; this callback only closes the loop.
+                                                    onSent = { },
+                                                    onError = { message ->
+                                                        viewModel.reportAuthError(message)
+                                                    }
+                                                )
+                                            }
+                                        )
+                                        if (showSecurityOffer) {
+                                            SecurityEntryDialog(
+                                                lockLabel = securityLockLabel(),
+                                                onUnlock = {
+                                                    securityOfferDismissed = true
+                                                    presentUnlock { viewModel.unlockSession() }
+                                                },
+                                                // A tap outside or a back press is the same answer as the
+                                                // second button: carry on with the form.
+                                                onUseAccount = { securityOfferDismissed = true }
+                                            )
+                                        }
+                                    } else {
+                                        MainAppScreen(viewModel = viewModel)
+                                    }
                                 }
                             }
                         }
@@ -218,6 +273,23 @@ class MainActivity : FragmentActivity() {
             info.setDeviceCredentialAllowed(true)
         }
         prompt.authenticate(info.build())
+    }
+
+    /**
+     * Which authenticator the phone will actually ask for, in words the owner recognises. Biometric
+     * capability is asked, never assumed; a phone that only has a pattern says pattern.
+     */
+    private fun securityLockLabel(): String {
+        val biometrics = BiometricManager.from(this).canAuthenticate(
+            BiometricManager.Authenticators.BIOMETRIC_STRONG or
+                BiometricManager.Authenticators.BIOMETRIC_WEAK
+        )
+        return when {
+            biometrics == BiometricManager.BIOMETRIC_SUCCESS ->
+                if (packageManager.hasSystemFeature(PackageManager.FEATURE_FACE)) "چهره یا اثر انگشت"
+                else "اثر انگشت"
+            else -> "قفل دستگاه"
+        }
     }
 
     private fun handleIncomingIntent(intent: Intent?) {

@@ -1,8 +1,14 @@
 package com.example
 
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ApplicationProvider
 import com.example.data.remote.auth.AccountOutcome
+import com.example.ui.screens.AuthScreen
 import com.example.ui.viewmodel.MainViewModel
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -85,10 +91,43 @@ class ForgotPasswordTest {
         assertEquals(NETWORK_MESSAGE, shown)
     }
 
+    /**
+     * The way out of the login form itself. The label's words and the address's shape are not what is
+     * measured here (Task 2 owns the address rules); what is measured is that the login tab carries the
+     * door at all, that pressing it hands the box's address to the caller, that the hint under it is
+     * only composed after a press, and that the signup tab carries no reset link at all - that tab
+     * creates an account, so a reset there would be a lie. Break 5d of the plan (rendering the button
+     * only when the callback is null) turns the first assertion red.
+     */
+    @Test
+    fun theLoginFormCarriesAForgotPasswordWayOut() {
+        var askedFor: String? = null
+        composeRule.setContent {
+            MaterialTheme {
+                AuthScreen(viewModel = viewModel, onForgotPassword = { address -> askedFor = address })
+            }
+        }
+
+        composeRule.onNodeWithTag("auth_forgot_password_btn").performScrollTo().assertExists()
+        composeRule.onNodeWithTag("auth_reset_hint").assertDoesNotExist()
+
+        composeRule.onNodeWithTag("auth_email_input").performScrollTo().performTextInput(RESET_ADDRESS)
+        composeRule.onNodeWithTag("auth_forgot_password_btn").performScrollTo().performClick()
+
+        assertEquals(RESET_ADDRESS, askedFor)
+        composeRule.onNodeWithTag("auth_reset_hint").assertExists()
+
+        composeRule.onNodeWithTag("tab_signup").performScrollTo().performClick()
+        composeRule.onNodeWithTag("auth_forgot_password_btn").assertDoesNotExist()
+    }
+
     private companion object {
         // Spliced from the plan's own bytes, not retyped: the sentences the account road may show.
         const val NO_ACCOUNT_MESSAGE = "چنین حسابی در این برنامه ثبت نشده است."
         const val RESET_SENT_MESSAGE = "راهنمای تغییر رمز به ایمیل تو فرستاده شد."
         const val NETWORK_MESSAGE = "ارتباط با سرویس حساب برقرار نشد؛ اینترنت را بررسی کن."
+
+        // An address this class types into the box; never a real account.
+        const val RESET_ADDRESS = "forgot.me@example.com"
     }
 }
