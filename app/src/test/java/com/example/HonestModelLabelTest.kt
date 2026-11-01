@@ -90,6 +90,26 @@ class HonestModelLabelTest {
         assertEquals("GPT-4o", scrubInventedModel(PlatformPreset.CUSTOM, "GPT-4o"))
     }
 
+    /**
+     * The second label this app invented for itself. Measured on the owner's handset: a conversation
+     * saved on 2026/10/06, read back on the CUSTOM platform, still shows this label in the library list
+     * although its source named no model. Deliberate break that reddens this: drop the CUSTOM line from
+     * the retired map and the first assertion returns the stored string instead of `null`.
+     */
+    @Test
+    fun legacyInventedUniversalLlmIsScrubbedOnCustom() {
+        assertNull(scrubInventedModel(PlatformPreset.CUSTOM, "Universal LLM"))
+    }
+
+    /**
+     * The other half of the rule: the scrub removes one retired constant, never a family of names, so a
+     * model the source really stated on CUSTOM passes through byte for byte.
+     */
+    @Test
+    fun statedCustomModelSurvivesTheScrub() {
+        assertEquals("gemini-1.5-pro", scrubInventedModel(PlatformPreset.CUSTOM, "gemini-1.5-pro"))
+    }
+
     @Test
     fun droppedTurnsNeverMakeAFullReadClaimComplete() {
         // A long read is still partial when the reader measured refusals inside it.

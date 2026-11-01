@@ -125,7 +125,7 @@ class ResumeDraftStoreTest {
             id = "session-empty",
             title = "پیش‌نویس بی‌محتوا",
             platform = PlatformPreset.CUSTOM,
-            modelName = "Universal LLM",
+            modelName = "gemini-1.5-pro",
             createdAt = createdAt,
             updatedAt = createdAt,
             messages = listOf(

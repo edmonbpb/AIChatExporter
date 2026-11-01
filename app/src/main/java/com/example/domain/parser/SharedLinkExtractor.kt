@@ -967,7 +967,8 @@ internal fun looksLikeConversation(text: String): Boolean {
  */
 private val LEGACY_INVENTED_MODELS: Map<PlatformPreset, Set<String>> = mapOf(
     PlatformPreset.CHATGPT to setOf("GPT-4o"),
-    PlatformPreset.CLAUDE to setOf("Claude 3.5 Sonnet")
+    PlatformPreset.CLAUDE to setOf("Claude 3.5 Sonnet"),
+    PlatformPreset.CUSTOM to setOf("Universal LLM")
 )
 
 /**
@@ -975,7 +976,8 @@ private val LEGACY_INVENTED_MODELS: Map<PlatformPreset, Set<String>> = mapOf(
  * Old library rows and old drafts still hold the invented «GPT-4o»; nothing rewrites them (Room is on
  * `version = 1` with destructive fallback, so a migration would delete the user's library), so every
  * path that LOADS a stored label passes it here first. `null` means «the source never stated a model»,
- * which the bubbles render without a model bracket.
+ * which the bubbles render without a model bracket. The retired set now also holds «Universal LLM»,
+ * measured on the CUSTOM platform, whose imports were stamped with it though the source named nothing.
  */
 internal fun scrubInventedModel(platform: PlatformPreset, stored: String?): String? {
     if (stored == null) return null
