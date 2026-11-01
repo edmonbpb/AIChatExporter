@@ -715,13 +715,23 @@ class MainViewModel(
         }
     }
 
+    /**
+     * Writes the mark the next cold start reads. `commit()`, not `apply()`: the only caller that
+     * matters here is [markHardExit], which runs on the main thread microseconds before
+     * `exitProcess(0)`. `apply()` only queues the disk write on the `QueuedWork` thread and the
+     * flush it relies on happens at an Activity transition, which the process exit never reaches, so
+     * on a loaded device the queued write could be lost and the next start would open straight into
+     * the workspace. This one flag has to be on disk before the caller ends the process.
+     */
     fun requireSignInOnNextStart() {
-        prefs.edit().putBoolean("exit_requires_login", true).apply()
+        prefs.edit().putBoolean("exit_requires_login", true).commit()
         _signInRequiredOnStart.value = true
     }
 
     fun clearSignInRequirement() {
         _signInRequiredOnStart.value = false
+        // apply() is enough here: this path opens the door and never ends the process, so the queued
+        // write still has the next start (or the normal Activity transition) to land.
         prefs.edit().remove("exit_requires_login").apply()
     }
 

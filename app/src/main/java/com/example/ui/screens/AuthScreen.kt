@@ -444,9 +444,14 @@ fun AuthScreen(
                             )
                         }
 
+                        // Shown once the owner has tried, whatever the answer was: the tap alone does not
+                        // prove a mail left the house, and on failure the banner under the form says so.
+                        // So this line only points at the road ahead - check the inbox, come back later -
+                        // and the success sentence stays where it belongs, in the banner the view model
+                        // sets on `EmailSent`.
                         if (resetRequested) {
                             Text(
-                                text = "راهنمای تغییر رمز به آن نشانی فرستاده شد؛ از ایمیل استفاده کن.",
+                                text = "ایمیل را بررسی کن؛ کمی بعد دوباره امتحان کن.",
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 ),

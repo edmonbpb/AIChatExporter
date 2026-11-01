@@ -32,6 +32,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -144,8 +145,10 @@ class MainActivity : FragmentActivity() {
                         val waitingFor = pendingVerificationEmail
 
                         // Neither button closes this popup by itself, so the choice is remembered here:
-                        // once the owner has answered it, it does not come back on the next recomposition.
-                        var securityOfferDismissed by remember { mutableStateOf(false) }
+                        // once the owner has answered it, it does not come back on the next recomposition
+                        // - nor on a rotation, which rebuilds the whole composition and would otherwise
+                        // ask the same owner the same question again.
+                        var securityOfferDismissed by rememberSaveable { mutableStateOf(false) }
                         val showSecurityOffer = !securityOfferDismissed && shouldOfferSecurityEntry(
                             signInRequiredOnStart = signInRequired,
                             manualSignInRequested = manualSignIn,
@@ -382,11 +385,17 @@ fun MainAppScreen(viewModel: MainViewModel) {
                 // The second press is the exit the owner asked for, so the next start has to ask again;
                 // markHardExit writes that decision to disk and leaves the account where it is.
                 viewModel.markHardExit()
-                (context as? android.app.Activity)?.finishAndRemoveTask()
                 // The task is gone, but Android may keep the process warm and some handsets keep
                 // listing it in the task manager. Ending the process is what makes that list honest
                 // about an app the owner asked to leave. A single Home press never comes through here.
-                exitProcess(0)
+                // The exit waits for a real task removal on purpose: with no Activity to remove there
+                // is no recents row to clear, and ending the process anyway would leave the very task
+                // this exit was meant to delete.
+                val hostActivity = context as? android.app.Activity
+                if (hostActivity != null) {
+                    hostActivity.finishAndRemoveTask()
+                    exitProcess(0)
+                }
             } else {
                 lastBackPressTime = currentTime
                 android.widget.Toast.makeText(

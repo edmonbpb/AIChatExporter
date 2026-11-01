@@ -1,6 +1,9 @@
 package com.example
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
@@ -12,6 +15,7 @@ import com.example.ui.screens.AuthScreen
 import com.example.ui.viewmodel.MainViewModel
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Before
@@ -95,9 +99,10 @@ class ForgotPasswordTest {
      * The way out of the login form itself. The label's words and the address's shape are not what is
      * measured here (Task 2 owns the address rules); what is measured is that the login tab carries the
      * door at all, that pressing it hands the box's address to the caller, that the hint under it is
-     * only composed after a press, and that the signup tab carries no reset link at all - that tab
-     * creates an account, so a reset there would be a lie. Break 5d of the plan (rendering the button
-     * only when the callback is null) turns the first assertion red.
+     * only composed after a press and that its sentence makes no claim the mail went out, and that the
+     * signup tab carries no reset link at all - that tab creates an account, so a reset there would be
+     * a lie. Break 5d of the plan (rendering the button only when the callback is null) turns the first
+     * assertion red; putting back a sentence that claims delivery turns the hint assertion red.
      */
     @Test
     fun theLoginFormCarriesAForgotPasswordWayOut() {
@@ -115,7 +120,15 @@ class ForgotPasswordTest {
         composeRule.onNodeWithTag("auth_forgot_password_btn").performScrollTo().performClick()
 
         assertEquals(RESET_ADDRESS, askedFor)
-        composeRule.onNodeWithTag("auth_reset_hint").assertExists()
+        // The hint appears after the press, but it must not claim the mail went out: the request can
+        // fail, and a failure is what the banner under the form says. The sentence is compared
+        // verbatim against the composable's own bytes, so a return to "the guide was sent" is red.
+        val hint = composeRule.onNodeWithTag("auth_reset_hint")
+        hint.assertExists()
+        hint.assertTextEquals(NEUTRAL_HINT)
+        val hintText = hint.fetchSemanticsNode()
+            .config.getOrNull(SemanticsProperties.Text)?.joinToString("") { it.text }.orEmpty()
+        assertFalse("the hint must not claim delivery: $hintText", hintText.contains(SENT_CLAIM))
 
         composeRule.onNodeWithTag("tab_signup").performScrollTo().performClick()
         composeRule.onNodeWithTag("auth_forgot_password_btn").assertDoesNotExist()
@@ -129,5 +142,9 @@ class ForgotPasswordTest {
 
         // An address this class types into the box; never a real account.
         const val RESET_ADDRESS = "forgot.me@example.com"
+
+        // Spliced from the composable's hint line and from the view model's sent-message constant.
+        const val NEUTRAL_HINT = "ایمیل را بررسی کن؛ کمی بعد دوباره امتحان کن."
+        const val SENT_CLAIM = "فرستاده شد"
     }
 }

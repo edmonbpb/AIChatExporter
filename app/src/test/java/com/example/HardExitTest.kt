@@ -76,8 +76,12 @@ class HardExitTest {
         assertTrue(beforeTheExit.signInRequiredOnStart.value)
 
         // The process is gone in real life; a new view model over the same prefs is that next start.
+        // What this proves is that the key and its value survive a new instance. It cannot prove they
+        // reached the disk before the process ended: the harness hands both instances the same
+        // in-memory map, so durability across a real process death is the handset's check, not this
+        // test's.
         assertTrue(
-            "the mark has to be on disk, or the next start walks straight into the workspace",
+            "the mark must survive a new view model, or the next start walks straight into the workspace",
             freshModel().signInRequiredOnStart.value
         )
     }
