@@ -33,7 +33,11 @@ class GoogleSignInCauseTest {
             "the retired accusation must not come back through this sentence",
             NO_CREDENTIAL_FA.contains(RETIRED_DEVICE_CLAIM)
         )
-        assertTrue("the way out stays named", NO_CREDENTIAL_FA.contains(GUEST_WORD))
+        assertFalse(
+            "guest mode is gone from the auth path, so this sentence must not name it",
+            NO_CREDENTIAL_FA.contains(GUEST_WORD)
+        )
+        assertTrue("the way out is the retry, not a guest session", NO_CREDENTIAL_FA.contains(WAY_OUT))
         assertEquals(
             "one sentence, no reason guessed inside it",
             1,
@@ -60,6 +64,10 @@ class GoogleSignInCauseTest {
     private companion object {
         // The bytes of the claim the phone proved false, asserted absent rather than restated in full.
         const val RETIRED_DEVICE_CLAIM = "پیدا نشد"
+
+        // The retired way out and the one that replaced it, both read as substrings so the sentence
+        // can be rephrased around them without the guard going quiet.
         const val GUEST_WORD = "مهمان"
+        const val WAY_OUT = "دوباره تلاش کن"
     }
 }

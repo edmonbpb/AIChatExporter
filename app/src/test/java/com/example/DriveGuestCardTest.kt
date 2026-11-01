@@ -4,6 +4,7 @@ import android.accounts.Account
 import android.app.Application
 import android.content.Context
 import android.content.Intent
+import android.os.Looper
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -26,17 +27,20 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.Implementation
 import org.robolectric.annotation.Implements
 import org.robolectric.annotation.LooperMode
 import org.robolectric.annotation.Resetter
 import org.robolectric.util.ReflectionHelpers
+import java.time.Duration
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 
@@ -115,9 +119,10 @@ class DriveGuestCardTest {
     @Test
     fun aGuestSessionGetsTheSameSentenceAsNobodySignedIn() {
         // The state the bug report was written from: the user is inside the app as a guest, and
-        // opening Settings re-probes the Drive connection on its own.
+        // opening Settings re-probes the Drive connection on its own. Guest mode is retired, so the
+        // session is put on disk before the view model starts, the way a guest device already holds it.
+        seedAppSession(guest = true)
         viewModel = MainViewModel(application)
-        viewModel.continueAsGuest()
         compose.setContent { MaterialTheme { SettingsScreen(viewModel) } }
 
         awaitStatus(SIGN_IN_FIRST)
@@ -138,8 +143,8 @@ class DriveGuestCardTest {
         // the guest one.
         seedCachedGoogleAccount()
         assertNotNull("fixture: Google's local cache holds an account", DriveAuth.lastAccount(application))
+        seedAppSession(guest = true)
         viewModel = MainViewModel(application)
-        viewModel.continueAsGuest()
         compose.setContent { MaterialTheme { SettingsScreen(viewModel) } }
 
         awaitStatus(SIGN_IN_FIRST)
@@ -184,12 +189,12 @@ class DriveGuestCardTest {
     fun aSessionChangeTakesThePreviousSessionsDriveSentenceOffTheCard() {
         // The defect measured on the handset (2026-10-31): the card's line answers the last Drive event,
         // and a session change did not reset it, so a cause the new session never met stayed on screen
-        // until some Drive call happened to overwrite it. The two directions share one reset, because
-        // the Google sign-in path and the guest entry path both persist the new profile in the same
-        // place, and this class can drive the reachable one through the view model: a signed-in session
-        // that met the missing consent, then the app's own session becomes a guest one. Nothing re-probes
-        // Drive on a session change - SettingsScreen.kt:233 keys that probe on the view model itself - so
-        // only that reset can take the old sentence off the card, which is what this test is here to hold.
+        // until some Drive call happened to overwrite it. The reachable direction then was a signed-in
+        // session that met the missing consent, then the app's own session becoming a guest one. Guest
+        // entry is retired now, so the guest half of that switch is put on disk and the app starts on it -
+        // the only way a guest session exists after this wave. The composed screen above keeps the session
+        // it was built with, so this test now holds the state side of the switch (the new session starts
+        // with no sentence inherited from the old one) and no longer the card side of it.
         seedCachedGoogleAccount()
         seedAppSession(guest = false)
         viewModel = MainViewModel(application)
@@ -197,12 +202,29 @@ class DriveGuestCardTest {
         awaitStatus(CONSENT_MISSING)
         compose.onNodeWithText(CONSENT_MISSING).performScrollTo().assertIsDisplayed()
 
-        compose.runOnIdle { viewModel.continueAsGuest() }
+        // The session change, driven through the one persist path this wave still has: the user signs in
+        // with another account while the screen is open. persistUser resets the card's sentence, and
+        // nothing re-probes Drive, so only that reset can take the old cause off the screen.
+        compose.runOnIdle {
+            viewModel.loginWithEmail(
+                email = "other-session@example.invalid",
+                password = "pass",
+                onSuccess = {},
+                onError = { fail("the fixture login must not fail: $it") }
+            )
+        }
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(1_200))
+        compose.waitForIdle()
 
-        assertTrue("fixture: the session became a guest one", viewModel.userProfile.value?.isGuest == true)
+        assertFalse("fixture: the session changed", viewModel.userProfile.value?.isGuest == true)
+        assertEquals(
+            "fixture: the new session is the one this test signed in",
+            "other-session@example.invalid",
+            viewModel.userProfile.value?.email
+        )
         assertNull("the previous session's cause must not outlive it", viewModel.driveBackupStatus.value)
         compose.onNodeWithText(CONSENT_MISSING).assertDoesNotExist()
-        // The line itself stays, on the card's own fallback: the last-backup sentence (SettingsScreen.kt:317).
+        // The line itself stays, on the card's own fallback: the last-backup sentence.
         compose.onNodeWithTag("drive_status").performScrollTo().assertIsDisplayed()
         assertEquals("a session change is not a Drive answer; nothing is probed again", 1, GoogleTokenShadow.requests.get())
     }

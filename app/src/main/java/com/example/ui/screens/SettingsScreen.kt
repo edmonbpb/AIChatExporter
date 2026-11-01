@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import android.app.Activity
+import android.app.KeyguardManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
@@ -26,15 +27,14 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
-import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Key
-import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
@@ -92,7 +92,15 @@ fun SettingsScreen(
     val currentThemePreset by viewModel.currentThemePreset.collectAsState()
     val fontScale by viewModel.fontScale.collectAsState()
     val fontFamilyPreset by viewModel.fontFamilyPreset.collectAsState()
+    val appLockEnabled by viewModel.appLockEnabled.collectAsState()
     var showLogoutDialog by remember { mutableStateOf(false) }
+    var showDisconnectDialog by remember { mutableStateOf(false) }
+
+    // The lock switch only makes sense when this phone already has a pattern, PIN or password.
+    val securityContext = LocalContext.current
+    val deviceCredentialAvailable = remember(securityContext) {
+        securityContext.getSystemService(KeyguardManager::class.java)?.isDeviceSecure == true
+    }
 
     // Only the key this device stored is shown here. `getActiveApiKey()` would also hand back the key
     // built into the APK (GeminiClient.kt:55-64), and echoing that into a text field leaks it on screen.
@@ -206,20 +214,21 @@ fun SettingsScreen(
                             AdaptiveLabel("ورود با گوگل", fontSize = 12.sp)
                         }
                     } else {
+                        // Disconnecting Google Drive keeps the account and the conversations on this device.
                         OutlinedButton(
-                            onClick = { showLogoutDialog = true },
+                            onClick = { showDisconnectDialog = true },
                             shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.testTag("sign_out_btn"),
+                            modifier = Modifier.testTag("disconnect_btn"),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
                         ) {
                             Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ExitToApp,
-                                contentDescription = "خروج از حساب",
+                                imageVector = Icons.Default.CloudOff,
+                                contentDescription = null,
                                 modifier = Modifier.size(16.dp),
                                 tint = MaterialTheme.colorScheme.error
                             )
                             Spacer(modifier = Modifier.width(4.dp))
-                            AdaptiveLabel("خروج", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                            AdaptiveLabel("قطع اتصال گوگل", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
                         }
                     }
                 }
@@ -630,47 +639,7 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        // BiDi Typography Card
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-        ) {
-            Column(modifier = Modifier.padding(14.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Palette, contentDescription = null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(20.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "تنظیمات تایپوگرافی دوزبانه (BiDi Engine)",
-                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                OptionToggleRow(
-                    label = "استفاده پیش‌فرض از ارقام فارسی (۰-۹)",
-                    checked = usePersianDigits,
-                    onCheckedChange = { viewModel.togglePersianDigits() },
-                    testTag = "settings_toggle_persian_digits"
-                )
-
-                Text(
-                    text = "• اعمال خودکار کاراکترهای جهت‌دهی یونیکد (LRM / RLM) جهت جلوگیری از به‌هم‌ریختگی پرانتزها و کدهای خطی",
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "• یکدست‌سازی نیم‌فاصله‌های فارسی (ZWNJ) برای پسوندها و پیشوندهای فعل‌ها",
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(14.dp))
-
-        // Progressive Workflow Navigation Setting Card
-        val progressiveWorkflowEnabled by viewModel.progressiveWorkflowEnabled.collectAsState()
+        // Security Card
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
@@ -687,7 +656,7 @@ fun SettingsScreen(
                         modifier = Modifier.weight(1f)
                     ) {
                         Icon(
-                            Icons.AutoMirrored.Filled.TrendingUp,
+                            Icons.Default.Security,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(20.dp)
@@ -695,11 +664,15 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.width(8.dp))
                         Column {
                             Text(
-                                text = "ناوبری مرحله‌ای و پویا (جریان کار)",
+                                text = "امنیت",
                                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
                             )
                             Text(
-                                text = "تب‌های پایین برنامه به صورت هوشمند و گام‌به‌گام با ورود داده و پیشرفت کار فعال شوند تا صفحه خلوت و متمرکز بماند.",
+                                text = "قفل برنامه با قفل دستگاه",
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
+                            )
+                            Text(
+                                text = "با هر بار باز شدن کامل برنامه، قفل دستگاه پرسیده می‌شود.",
                                 style = MaterialTheme.typography.bodySmall.copy(
                                     fontSize = 11.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -710,8 +683,20 @@ fun SettingsScreen(
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Switch(
-                        checked = progressiveWorkflowEnabled,
-                        onCheckedChange = { viewModel.progressiveWorkflowEnabled.value = it }
+                        checked = appLockEnabled,
+                        onCheckedChange = { viewModel.setAppLockEnabled(it) },
+                        enabled = deviceCredentialAvailable,
+                        modifier = Modifier.testTag("settings_toggle_app_lock")
+                    )
+                }
+                if (!deviceCredentialAvailable) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "برای روشن‌کردن قفل، اول روی گوشی الگو، پین یا گذرواژه تنظیم کن.",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.error
+                        )
                     )
                 }
             }
@@ -828,6 +813,31 @@ fun SettingsScreen(
             },
             dismissButton = {
                 OutlinedButton(onClick = { showLogoutDialog = false }) {
+                    AdaptiveLabel("انصراف", itemCount = 2)
+                }
+            }
+        )
+    }
+
+    // Disconnect Confirmation Dialog
+    if (showDisconnectDialog) {
+        AlertDialog(
+            onDismissRequest = { showDisconnectDialog = false },
+            title = { Text("قطع اتصال گوگل", fontWeight = FontWeight.Bold) },
+            text = { Text("اتصال برنامه به گوگل درایو قطع می‌شود؛ حساب و مکالمه‌های شما روی همین دستگاه می‌ماند.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDisconnectDialog = false
+                        viewModel.disconnectGoogleAccount()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    AdaptiveLabel("قطع اتصال", itemCount = 2)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showDisconnectDialog = false }) {
                     AdaptiveLabel("انصراف", itemCount = 2)
                 }
             }

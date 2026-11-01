@@ -1,6 +1,5 @@
 package com.example.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -26,7 +25,6 @@ import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -34,6 +32,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -74,13 +73,13 @@ import com.example.ui.viewmodel.MainViewModel
 @Composable
 fun AuthScreen(
     viewModel: MainViewModel,
+    onQuickUnlock: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var selectedTab by remember { mutableIntStateOf(0) } // 0 = Login, 1 = Sign Up
-    var email by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf(viewModel.rememberedEmail.value ?: "") }
     var password by remember { mutableStateOf("") }
-    var name by remember { mutableStateOf("") }
-    var confirmPassword by remember { mutableStateOf("") }
+    var rememberMe by remember { mutableStateOf(false) }
     var passwordVisible by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -154,6 +153,38 @@ fun AuthScreen(
                 border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
+                    // Quick unlock: only present when the app lock is on and the user chose manual sign-in.
+                    if (onQuickUnlock != null) {
+                        OutlinedButton(
+                            onClick = onQuickUnlock,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp)
+                                .testTag("auth_quick_unlock_btn"),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            ),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Lock,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            AdaptiveLabel(
+                                text = "ورود سریع با قفل امنیتی",
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(14.dp))
+                    }
+
                     // Sign In / Sign Up Tabs
                     TabRow(
                         selectedTabIndex = selectedTab,
@@ -167,7 +198,7 @@ fun AuthScreen(
                                 selectedTab = 0
                                 errorMessage = null
                             },
-                            text = { AdaptiveLabel("ورود به حساب", itemCount = 2, fontWeight = FontWeight.Bold) },
+                            text = { AdaptiveLabel("ورود به برنامه", itemCount = 2, fontWeight = FontWeight.Bold) },
                             modifier = Modifier.testTag("tab_login")
                         )
                         Tab(
@@ -176,89 +207,78 @@ fun AuthScreen(
                                 selectedTab = 1
                                 errorMessage = null
                             },
-                            text = { AdaptiveLabel("ثبت نام جدید", itemCount = 2, fontWeight = FontWeight.Bold) },
+                            text = { AdaptiveLabel("ساخت حساب کاربری", itemCount = 2, fontWeight = FontWeight.Bold) },
                             modifier = Modifier.testTag("tab_signup")
                         )
                     }
 
                     Spacer(modifier = Modifier.height(18.dp))
 
-                    // Google Sign-In Button (One-tap)
-                    OutlinedButton(
-                        enabled = viewModel.isGoogleSignInConfigured,
-                        onClick = {
-                            isLoading = true
-                            viewModel.loginWithGoogle(
-                                context = context,
-                                onSuccess = { isLoading = false },
-                                onError = {
-                                    isLoading = false
-                                    errorMessage = it
-                                }
-                            )
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp)
-                            .testTag("google_signin_button"),
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                        ),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(text = "🌐", fontSize = 18.sp)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            AdaptiveLabel(
-                                text = "ورود سریع با حساب گوگل (Google Sign-In)",
-                                style = MaterialTheme.typography.labelMedium.copy(
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSurface
+                    // Google Sign-In: account creation only, so it lives in the sign-up tab.
+                    if (selectedTab == 1) {
+                        OutlinedButton(
+                            enabled = viewModel.isGoogleSignInConfigured,
+                            onClick = {
+                                isLoading = true
+                                viewModel.loginWithGoogle(
+                                    context = context,
+                                    onSuccess = { isLoading = false },
+                                    onError = {
+                                        isLoading = false
+                                        errorMessage = it
+                                    }
                                 )
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp)
+                                .testTag("google_signin_button"),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            ),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(text = "🌐", fontSize = 18.sp)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                AdaptiveLabel(
+                                    text = "ساخت حساب کاربری سریع با حساب گوگل",
+                                    style = MaterialTheme.typography.labelMedium.copy(
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                )
+                            }
+                        }
+
+                        if (!viewModel.isGoogleSignInConfigured) {
+                            Text(
+                                text = "این بسته با شناسهٔ OAuth گوگل ساخته نشده است؛ با ایمیل و رمز عبور ادامه بده.",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
+                                modifier = Modifier.padding(top = 6.dp)
                             )
                         }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            HorizontalDivider(modifier = Modifier.weight(1f))
+                            Text(
+                                text = "یا با ایمیل و رمز عبور",
+                                style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
+                                modifier = Modifier.padding(horizontal = 10.dp)
+                            )
+                            HorizontalDivider(modifier = Modifier.weight(1f))
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
                     }
-
-                    if (!viewModel.isGoogleSignInConfigured) {
-                        Text(
-                            text = "این بسته با شناسهٔ OAuth گوگل ساخته نشده است؛ برای ادامه از حالت مهمان استفاده کنید.",
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            ),
-                            modifier = Modifier.padding(top = 6.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        HorizontalDivider(modifier = Modifier.weight(1f))
-                        Text(
-                            text = "یا با ایمیل و رمز عبور (نمونهٔ آزمایشی)",
-                            style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
-                            modifier = Modifier.padding(horizontal = 10.dp)
-                        )
-                        HorizontalDivider(modifier = Modifier.weight(1f))
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    // Honesty label: this form is a local demo and authenticates nothing.
-                    Text(
-                        text = "این فرم ایمیل و گذرواژه یک نمونهٔ آزمایشیِ محلی است: در هیچ سرویسی راستی‌آزمایی نمی‌شود و چیزی ارسال نمی‌شود؛ فقط نام نمایشی روی همین دستگاه ذخیره می‌شود. برای ورود واقعی از «ورود سریع با حساب گوگل» استفاده کنید یا با «ورود به عنوان مهمان» ادامه دهید.",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        ),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("email_demo_notice")
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
 
                     // Error Box
                     if (errorMessage != null) {
@@ -276,26 +296,6 @@ fun AuthScreen(
                             )
                         }
                         Spacer(modifier = Modifier.height(12.dp))
-                    }
-
-                    // Name Field (Sign Up Only)
-                    AnimatedVisibility(visible = selectedTab == 1) {
-                        Column {
-                            OutlinedTextField(
-                                value = name,
-                                onValueChange = { name = it },
-                                label = { Text("نام و نام خانوادگی") },
-                                leadingIcon = {
-                                    Icon(Icons.Default.Person, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .testTag("auth_name_input"),
-                                shape = RoundedCornerShape(10.dp),
-                                singleLine = true
-                            )
-                            Spacer(modifier = Modifier.height(12.dp))
-                        }
                     }
 
                     // Email Field
@@ -334,7 +334,7 @@ fun AuthScreen(
                             }
                         },
                         visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = if (selectedTab == 1) ImeAction.Next else ImeAction.Done),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("auth_password_input"),
@@ -342,23 +342,24 @@ fun AuthScreen(
                         singleLine = true
                     )
 
-                    // Confirm Password Field (Sign Up Only)
-                    AnimatedVisibility(visible = selectedTab == 1) {
-                        Column {
-                            Spacer(modifier = Modifier.height(12.dp))
-                            OutlinedTextField(
-                                value = confirmPassword,
-                                onValueChange = { confirmPassword = it },
-                                label = { Text("تکرار گذرواژه") },
-                                leadingIcon = {
-                                    Icon(Icons.Default.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                                },
-                                visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .testTag("auth_confirm_password_input"),
-                                shape = RoundedCornerShape(10.dp),
-                                singleLine = true
+                    // Remember me: login only, and only the email is ever stored.
+                    if (selectedTab == 0) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 6.dp)
+                                .clickable { rememberMe = !rememberMe },
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = rememberMe,
+                                onCheckedChange = { rememberMe = it },
+                                modifier = Modifier.testTag("auth_remember_me")
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "مرا به خاطر بسپار",
+                                style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                             )
                         }
                     }
@@ -372,10 +373,6 @@ fun AuthScreen(
                                 errorMessage = "لطفاً ایمیل و گذرواژه را وارد کنید."
                                 return@Button
                             }
-                            if (selectedTab == 1 && password != confirmPassword) {
-                                errorMessage = "تکرار گذرواژه با گذرواژه اصلی مطابقت ندارد."
-                                return@Button
-                            }
 
                             isLoading = true
                             errorMessage = null
@@ -384,7 +381,10 @@ fun AuthScreen(
                                 viewModel.loginWithEmail(
                                     email = email.trim(),
                                     password = password,
-                                    onSuccess = { isLoading = false },
+                                    onSuccess = {
+                                        isLoading = false
+                                        viewModel.setRememberedEmail(email.trim(), rememberMe)
+                                    },
                                     onError = {
                                         isLoading = false
                                         errorMessage = it
@@ -392,7 +392,6 @@ fun AuthScreen(
                                 )
                             } else {
                                 viewModel.registerWithEmail(
-                                    name = name.trim().takeIf { it.isNotBlank() } ?: "کاربر سامانه",
                                     email = email.trim(),
                                     password = password,
                                     onSuccess = { isLoading = false },
@@ -415,33 +414,8 @@ fun AuthScreen(
                             CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                         } else {
                             AdaptiveLabel(
-                                text = if (selectedTab == 0) "ورود به حساب نمونهٔ آزمایشی"
-                                else "ساخت حساب نمونهٔ آزمایشی",
+                                text = if (selectedTab == 0) "ورود به برنامه" else "ساخت حساب کاربری",
                                 style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // Guest Mode Button (MANDATORY per Product Specs)
-                    Button(
-                        onClick = { viewModel.continueAsGuest() },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(46.dp)
-                            .testTag("guest_mode_btn"),
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.secondary
-                        )
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(text = "🚀", fontSize = 16.sp)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            AdaptiveLabel(
-                                text = "ورود به عنوان مهمان (Guest Mode)",
-                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
                             )
                         }
                     }

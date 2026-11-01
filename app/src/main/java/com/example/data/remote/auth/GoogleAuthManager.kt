@@ -193,8 +193,7 @@ private const val HOST_MISSING_FA =
     "صفحهٔ میزبان در دسترس نیست؛ درخواست حساب گوگل به یک Activity نیاز دارد."
 
 private const val NOT_CONFIGURED_FA =
-    "ورود با حساب گوگل در این نسخه پیکربندی نشده است. تا وقتی شناسهٔ OAuth client در فایل " +
-        "راز برنامه ننشینیم، هیچ نشستی ساخته نمی‌شود. با حالت مهمان همهٔ ابزارها باز می‌مانند."
+    "ورود با حساب گوگل در این نسخه پیکربندی نشده است. با ایمیل و رمز عبور ادامه بده."
 
 private const val CREDENTIAL_LOG_TAG = "GoogleSignIn"
 
@@ -203,4 +202,4 @@ private const val CREDENTIAL_LOG_TAG = "GoogleSignIn"
 // Google accounts while this still arrived — and names no suspected reason (an unregistered package, a
 // provider fault), because no typed value ever tells us which one it was.
 internal const val NO_CREDENTIAL_FA =
-    "گوگل برای این برنامه ورودِ قابلِ استفاده‌ای پیدا نکرد؛ روی این دستگاه دوباره تلاش کن یا به‌عنوان مهمان ادامه بده."
+    "گوگل برای این برنامه ورودِ قابلِ استفاده‌ای پیدا نکرد؛ روی این دستگاه دوباره تلاش کن."

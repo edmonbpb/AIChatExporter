@@ -1,12 +1,15 @@
 package com.example
 
+import android.app.KeyguardManager
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -40,14 +43,19 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
 import com.example.ui.components.AppBottomNavBar
 import com.example.ui.components.AppScreen
 import com.example.ui.components.AppTopBar
+import com.example.ui.navigation.isExitDoublePress
+import com.example.ui.navigation.shouldShowLock
 import com.example.ui.screens.AuthScreen
 import com.example.ui.screens.DistillationScreen
 import com.example.ui.screens.ExportStudioScreen
 import com.example.ui.screens.ImportScreen
 import com.example.ui.screens.LibraryScreen
+import com.example.ui.screens.LockScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.screens.WorkspaceScreen
 import com.example.ui.theme.AIChatExporterTheme
@@ -65,7 +73,7 @@ private val NoOpTextToolbar = object : TextToolbar {
     ) {}
 }
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
 
     private val viewModel: MainViewModel by viewModels()
 
@@ -87,6 +95,13 @@ class MainActivity : ComponentActivity() {
                 fontFamilyPreset = fontFamilyPreset
             ) {
                 val userProfile by viewModel.userProfile.collectAsState()
+                val appLockEnabled by viewModel.appLockEnabled.collectAsState()
+                val sessionUnlocked by viewModel.sessionUnlocked.collectAsState()
+                val manualSignIn by viewModel.lockManualSignIn.collectAsState()
+                // Nothing to ask when the phone has no pattern/PIN/password; the lock then stays
+                // open instead of leaving the user on a screen with no working way forward.
+                val deviceCredentialAvailable =
+                    getSystemService(KeyguardManager::class.java)?.isDeviceSecure == true
 
                 CompositionLocalProvider(
                     LocalLayoutDirection provides LayoutDirection.Rtl,
@@ -101,11 +116,40 @@ class MainActivity : ComponentActivity() {
                             .fillMaxSize()
                             .semantics { testTagsAsResourceId = true }
                     ) {
-                        Crossfade(targetState = userProfile != null, label = "auth_crossfade") { isAuthenticated ->
-                            if (isAuthenticated) {
-                                MainAppScreen(viewModel = viewModel)
-                            } else {
-                                AuthScreen(viewModel = viewModel)
+                        // The manual-sign-in request is honoured only for the locked-out user who asked
+                        // for it: without this term the lock screen would sit forever in front of the
+                        // auth form it is supposed to reveal.
+                        val showLock = shouldShowLock(
+                            appLockEnabled,
+                            deviceCredentialAvailable,
+                            sessionUnlocked
+                        ) && !manualSignIn
+                        if (showLock) {
+                            LockScreen(
+                                onUnlock = { presentUnlock { viewModel.unlockSession() } },
+                                onManualSignIn = { viewModel.requestManualSignIn() },
+                                onRemoveLock = {
+                                    presentUnlock {
+                                        viewModel.setAppLockEnabled(false)
+                                        viewModel.unlockSession()
+                                    }
+                                }
+                            )
+                        } else {
+                            Crossfade(
+                                targetState = userProfile != null || manualSignIn,
+                                label = "auth_crossfade"
+                            ) { showAuth ->
+                                if (showAuth) {
+                                    AuthScreen(
+                                        viewModel = viewModel,
+                                        onQuickUnlock = if (appLockEnabled && manualSignIn) {
+                                            { presentUnlock { viewModel.unlockSession() } }
+                                        } else null
+                                    )
+                                } else {
+                                    MainAppScreen(viewModel = viewModel)
+                                }
                             }
                         }
                     }
@@ -141,6 +185,35 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleIncomingIntent(intent)
+    }
+
+    /**
+     * Asks for the device credential - pattern, PIN, password, fingerprint or face in one prompt.
+     * No negative button may be set: the builder rejects it whenever device credential is allowed.
+     */
+    private fun presentUnlock(onSuccess: () -> Unit) {
+        val prompt = BiometricPrompt(
+            this,
+            ContextCompat.getMainExecutor(this),
+            object : BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                    onSuccess()
+                }
+            }
+        )
+        val info = BiometricPrompt.PromptInfo.Builder()
+            .setTitle("باز کردن برنامه")
+            .setSubtitle("قفل دستگاه را باز کن")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            info.setAllowedAuthenticators(
+                BiometricManager.Authenticators.BIOMETRIC_WEAK or
+                    BiometricManager.Authenticators.DEVICE_CREDENTIAL
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            info.setDeviceCredentialAllowed(true)
+        }
+        prompt.authenticate(info.build())
     }
 
     private fun handleIncomingIntent(intent: Intent?) {
@@ -227,8 +300,8 @@ fun MainAppScreen(viewModel: MainViewModel) {
             }
         } else {
             val currentTime = System.currentTimeMillis()
-            if (currentTime - lastBackPressTime < 2000L) {
-                (context as? android.app.Activity)?.finish()
+            if (isExitDoublePress(currentTime, lastBackPressTime)) {
+                (context as? android.app.Activity)?.finishAndRemoveTask()
             } else {
                 lastBackPressTime = currentTime
                 android.widget.Toast.makeText(

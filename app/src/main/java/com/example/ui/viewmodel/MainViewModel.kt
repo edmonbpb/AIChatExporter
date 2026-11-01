@@ -133,6 +133,20 @@ private const val DRIVE_CONSENT_MISSING_FA =
 private const val DRIVE_SIGN_IN_FIRST_FA =
     "اول با حسابِ گوگل وارد شو، بعد برنامه را به درایو وصل کن."
 
+/**
+ * The value-carrying branch of [GoogleAuthManager.signInWithGoogle] on its own, so a JVM test can see
+ * that a real profile reaches the store without a Play Services device. Any other outcome persists
+ * nothing and answers null; the caller still reports it with `messageFa`.
+ */
+internal fun applyGoogleSignInOutcome(
+    outcome: GoogleSignInOutcome,
+    persist: (UserProfile) -> Unit
+): UserProfile? {
+    val profile = (outcome as? GoogleSignInOutcome.SignedIn)?.profile ?: return null
+    persist(profile)
+    return profile
+}
+
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val db = AppDatabase.getInstance(application)
@@ -146,6 +160,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // User Authentication State
     private val _userProfile = MutableStateFlow<UserProfile?>(null)
     val userProfile: StateFlow<UserProfile?> = _userProfile.asStateFlow()
+
+    // The address the login form reopens with. Email only: no password is stored anywhere here.
+    private val _rememberedEmail = MutableStateFlow(
+        prefs.getString("remembered_email", null)?.takeIf { it.isNotBlank() }
+    )
+    val rememberedEmail: StateFlow<String?> = _rememberedEmail.asStateFlow()
+
+    // App lock: the switch belongs to the device and is stored; the two flags below live only in this
+    // process, so a cold start always asks for the device lock again. Never persisted, never saveable.
+    val appLockEnabled = MutableStateFlow(prefs.getBoolean("app_lock_enabled", false))
+    val sessionUnlocked = MutableStateFlow(false)
+    val lockManualSignIn = MutableStateFlow(false)
 
     // Navigation & Screen
     private val _currentScreen = MutableStateFlow(AppScreen.IMPORT)
@@ -263,7 +289,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun beginDriveConsent(): Boolean {
-        if (driveSignedOut || driveConsentPending) return false
+        // Pressing connect again is the user's fresh answer: a disconnect is not a permanent lock-out,
+        // so the signed-out flag is cleared before the guard can refuse the ask.
+        driveSignedOut = false
+        if (driveConsentPending) return false
         driveOperation?.cancel()
         driveConsentPending = true
         // A fresh consent is a fresh ask: a refusal recorded against the old grant must not keep the
@@ -482,15 +511,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun loginWithGoogle(context: Context, onSuccess: () -> Unit, onError: (String) -> Unit) {
         viewModelScope.launch {
-            when (val outcome = GoogleAuthManager.signInWithGoogle(context)) {
-                is GoogleSignInOutcome.SignedIn -> {
-                    persistUser(outcome.profile)
-                    _userProfile.value = outcome.profile
-                    _userMessage.value = outcome.messageFa
-                    onSuccess()
-                }
-
-                else -> onError(outcome.messageFa)
+            val outcome = GoogleAuthManager.signInWithGoogle(context)
+            val profile = applyGoogleSignInOutcome(outcome) { persistUser(it) }
+            if (profile != null) {
+                _userProfile.value = profile
+                _userMessage.value = outcome.messageFa
+                onSuccess()
+            } else {
+                onError(outcome.messageFa)
             }
         }
     }
@@ -502,10 +530,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 onError("طول گذرواژه باید حداقل ۴ کاراکتر باشد.")
                 return@launch
             }
-            val userName = email.substringBefore("@").replace(".", " ").capitalizeWords()
             val profile = UserProfile(
                 id = UUID.randomUUID().toString(),
-                name = userName,
+                name = displayNameFromEmail(email),
                 email = email,
                 isGuest = false,
                 isGoogleDriveLinked = false,
@@ -518,7 +545,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun registerWithEmail(name: String, email: String, password: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+    fun registerWithEmail(email: String, password: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
         viewModelScope.launch {
             delay(900)
             if (password.length < 4) {
@@ -527,7 +554,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
             val profile = UserProfile(
                 id = UUID.randomUUID().toString(),
-                name = name,
+                name = displayNameFromEmail(email),
                 email = email,
                 isGuest = false,
                 isGoogleDriveLinked = false,
@@ -540,18 +567,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun continueAsGuest() {
-        val guestProfile = UserProfile(
-            id = "guest_${UUID.randomUUID().toString().take(6)}",
-            name = "کاربر مهمان (Guest)",
-            email = "guest@offline.local",
-            isGuest = true,
-            isGoogleDriveLinked = false,
-            role = "داده‌ها روی همین دستگاه"
-        )
-        persistUser(guestProfile)
-        _userProfile.value = guestProfile
-        _userMessage.value = "ورود به حالت مهمان با دسترسی کامل به ابزارها 🚀"
+    /** Keeps the login form's address, not the password: clearing the box clears the key too. */
+    fun setRememberedEmail(email: String, remember: Boolean) {
+        if (remember) {
+            val kept = email.trim()
+            prefs.edit().putString("remembered_email", kept).apply()
+            _rememberedEmail.value = kept
+        } else {
+            prefs.edit().remove("remembered_email").apply()
+            _rememberedEmail.value = null
+        }
     }
 
     fun signOut() {
@@ -561,6 +586,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         pendingDriveRecoveryIntent = null
         _driveLinked.value = false
         _driveBackupStatus.value = null
+        // The app lock is a device setting, not the session's: app_lock_enabled and sessionUnlocked
+        // stay as they are here, so signing out does not quietly unlock the next cold start.
         clearAccountPrefs()
         _userProfile.value = null
         resetSession()
@@ -568,6 +595,38 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun logout() = signOut()
+
+    /**
+     * The backup card's «قطع اتصال گوگل»: only the Drive link is dropped. The account, its prefs and
+     * the conversation stay on this device, so this never calls clearAccountPrefs(), resetSession()
+     * or touches _userProfile — signOut() above is the real exit and keeps that job.
+     */
+    fun disconnectGoogleAccount() {
+        driveConsentPending = false
+        driveOperation?.cancel()
+        pendingDriveRecoveryIntent = null
+        driveSignedOut = true
+        _driveLinked.value = false
+        _driveBackupStatus.value = "اتصال به گوگل قطع شد؛ حساب و داده‌های شما روی همین دستگاه مانده است."
+        prefs.edit().putBoolean("drive_linked", false).apply()
+    }
+
+    fun setAppLockEnabled(enabled: Boolean) {
+        appLockEnabled.value = enabled
+        prefs.edit().putBoolean("app_lock_enabled", enabled).apply()
+        // Turning the switch on happens behind the device lock that was just answered, so the session
+        // that made the choice is already unlocked.
+        if (enabled) sessionUnlocked.value = true
+    }
+
+    fun unlockSession() {
+        sessionUnlocked.value = true
+        lockManualSignIn.value = false
+    }
+
+    fun requestManualSignIn() {
+        lockManualSignIn.value = true
+    }
 
     fun setThemePreset(preset: AppThemePreset) {
         currentThemePreset.value = preset
@@ -686,6 +745,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             .putBoolean("drive_linked", profile.isGoogleDriveLinked)
             .putString("user_role", profile.role)
             .apply()
+        // Any successful sign-in is the end of the lock screen's manual-sign-in pane.
+        lockManualSignIn.value = false
     }
 
     // Appearance keys (theme_preset, font_scale, font_family) belong to the device, not the session.
@@ -702,6 +763,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun String.capitalizeWords(): String =
         split(" ").joinToString(" ") { it.replaceFirstChar { char -> if (char.isLowerCase()) char.titlecase() else char.toString() } }
+
+    /**
+     * The only rule for a display name now that the signup form asks for no name: the part before the
+     * @, dots read as spaces. Signing in and signing up both come through here so they cannot drift.
+     */
+    private fun displayNameFromEmail(email: String): String =
+        email.substringBefore("@").replace(".", " ").capitalizeWords()
 
     fun unlockScreen(screen: AppScreen) {
         if (!_unlockedScreens.value.contains(screen)) {

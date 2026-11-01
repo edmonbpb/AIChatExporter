@@ -245,6 +245,18 @@ fun WorkspaceScreen(
                     label = { AdaptiveLabel("پاسخ‌های هوش مصنوعی (${if (usePersianDigits) BidiEngine.toPersianDigits(activeSession.assistantMessageCount.toString()) else activeSession.assistantMessageCount.toString()})") },
                     modifier = Modifier.testTag("filter_ai_chip")
                 )
+                FilterChip(
+                    selected = searchQuery.isBlank() && !filterCodeOnly && !filterUserOnly && !filterAiOnly,
+                    onClick = {
+                        viewModel.searchQuery.value = ""
+                        viewModel.filterOnlyCode.value = false
+                        viewModel.filterOnlyUser.value = false
+                        viewModel.filterOnlyAssistant.value = false
+                    },
+                    label = { AdaptiveLabel("همه پیام‌ها") },
+                    leadingIcon = { Icon(Icons.Default.FilterList, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                    modifier = Modifier.testTag("all_messages_chip")
+                )
             }
         }
 

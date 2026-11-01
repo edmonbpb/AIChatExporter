@@ -112,6 +112,11 @@ dependencies {
   implementation(libs.androidx.compose.ui.graphics)
   implementation(libs.androidx.compose.ui.tooling.preview)
   implementation(libs.androidx.core.ktx)
+  // The app lock asks for the device credential through BiometricPrompt, which can only be
+  // constructed from a FragmentActivity; fragment is pinned because the old transitive version
+  // does not build against the activity release this project already uses.
+  implementation(libs.androidx.biometric)
+  implementation(libs.androidx.fragment)
   // Drive backup asks for the drive.file scope through GoogleSignInClient; the credentials
   // library only carries it at runtime, so the compile classpath needs it named here.
   implementation("com.google.android.gms:play-services-auth:21.1.1")
