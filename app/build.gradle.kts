@@ -141,6 +141,11 @@ dependencies {
   implementation(libs.androidx.credentials.play.services)
   implementation(libs.googleid)
 
+  // Real accounts. Only FirebaseAccountService may import these; every other file goes through
+  // AccountService so the flow stays testable without a Firebase project.
+  implementation(platform(libs.firebase.bom))
+  implementation(libs.firebase.auth)
+
   // The mockable android.jar leaves org.json methods throwing "not mocked", so JVM tests of the
   // draft codec need the real implementation; the jar is vendored because no network is available.
   testImplementation(files("libs/json-20240303.jar"))

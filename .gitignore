@@ -37,3 +37,6 @@ debug.keystore
 /docs/reports/agy/*.json
 /docs/reports/agy/*.txt
 /docs/reports/agy/*.html
+
+# Firebase project config: needed at build time, not for the public record.
+app/google-services.json
