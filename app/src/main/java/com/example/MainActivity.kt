@@ -41,6 +41,7 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalTextToolbar
 import androidx.compose.ui.platform.TextToolbar
 import androidx.compose.ui.platform.TextToolbarStatus
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.unit.LayoutDirection
@@ -326,6 +327,9 @@ fun MainAppScreen(viewModel: MainViewModel) {
         exportState.lastExportedRecord?.sessionId == session.id
     } ?: false
     var showNewSessionDialog by remember { mutableStateOf(false) }
+    // The top bar's exit asks before it acts: the same question the Settings card asks, so the two
+    // roads to a sign-out cannot disagree about what happens to the work already on the device.
+    var showLogoutDialog by remember { mutableStateOf(false) }
     // One automatic backup per local calendar day, on the first open of that day.
     LaunchedEffect(Unit) { viewModel.autoBackUpIfDue() }
     val userMessage by viewModel.userMessage.collectAsState()
@@ -414,7 +418,8 @@ fun MainAppScreen(viewModel: MainViewModel) {
                 activeSession = activeSession,
                 onSaveSession = { viewModel.saveActiveSessionToDatabase() },
                 onToggleBookmark = { viewModel.toggleBookmarkActiveSession() },
-                onNewSession = { showNewSessionDialog = true }
+                onNewSession = { showNewSessionDialog = true },
+                onLogout = { showLogoutDialog = true }
             )
         },
         bottomBar = {
@@ -496,6 +501,30 @@ fun MainAppScreen(viewModel: MainViewModel) {
                         ) { Text("ذخیره کن و ببند") }
                     }
                     TextButton(onClick = { showNewSessionDialog = false }) { Text("انصراف") }
+                }
+            }
+        )
+    }
+
+    // The top bar's exit. Same title and the same promise about the files as the Settings dialog:
+    // signing out ends the account session, never the conversations on this device.
+    if (showLogoutDialog) {
+        AlertDialog(
+            onDismissRequest = { showLogoutDialog = false },
+            title = { Text("خروج از حساب کاربری") },
+            text = { Text("آیا مطمئن هستید که می‌خواهید از حساب کاربری خارج شوید؟ سوابق مکالمات و اسناد صادرشده شما در حافظه این دستگاه محفوظ خواهند ماند.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showLogoutDialog = false
+                        viewModel.logout()
+                    },
+                    modifier = Modifier.testTag("logout_confirm_button")
+                ) { Text("خروج") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLogoutDialog = false }) {
+                    Text("انصراف")
                 }
             }
         )

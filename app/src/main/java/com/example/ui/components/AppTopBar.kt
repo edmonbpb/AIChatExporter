@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
@@ -43,6 +44,7 @@ fun AppTopBar(
     onSaveSession: () -> Unit,
     onToggleBookmark: () -> Unit,
     onNewSession: () -> Unit,
+    onLogout: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     TopAppBar(
@@ -150,6 +152,19 @@ fun AppTopBar(
                     imageVector = Icons.Default.Add,
                     contentDescription = "گفتگوی جدید",
                     tint = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            // Deliberately the last action: the icons above keep the positions the owner already
+            // knows, and the bar is crowded enough on a 1080-wide phone without a reshuffle.
+            IconButton(
+                onClick = onLogout,
+                modifier = Modifier.testTag("logout_top_button")
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ExitToApp,
+                    contentDescription = "خروج از حساب",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         },

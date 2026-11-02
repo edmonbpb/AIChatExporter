@@ -760,6 +760,10 @@ class MainViewModel(
         _driveBackupStatus.value = null
         // The app lock is a device setting, not the session's: app_lock_enabled and sessionUnlocked
         // stay as they are here, so signing out does not quietly unlock the next cold start.
+        // The provider's own session ends here too: clearing the local prefs alone would leave a
+        // Firebase user behind, and the next feature that reads `currentUser` would see a session
+        // the screen says is gone. `disconnectGoogleAccount()` stays the exception on purpose.
+        account.signOut()
         clearAccountPrefs()
         _userProfile.value = null
         resetSession()
