@@ -18,7 +18,6 @@ import java.util.concurrent.TimeUnit
 object GeminiClient {
 
     private const val TAG = "GeminiClient"
-    private const val API_ENDPOINT_PREFIX = "https://generativelanguage.googleapis.com/v1beta/models/"
 
     // Modern candidate models in order of priority for high resilience
     private val CANDIDATE_MODELS = listOf(
@@ -111,12 +110,7 @@ object GeminiClient {
                     put("generationConfig", genConfig)
                 }
 
-                val requestBody = jsonBody.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
-                val url = "$API_ENDPOINT_PREFIX$modelName:generateContent?key=$apiKey"
-                val request = Request.Builder()
-                    .url(url)
-                    .post(requestBody)
-                    .build()
+                val request = generateContentRequest(modelName, apiKey, jsonBody)
 
                 val response = httpClient.newCall(request).execute()
                 val responseString = response.body?.string() ?: ""
@@ -228,12 +222,7 @@ $currentContent
                     put("contents", contentsArray)
                 }
 
-                val requestBody = jsonBody.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
-                val url = "$API_ENDPOINT_PREFIX$modelName:generateContent?key=$apiKey"
-                val request = Request.Builder()
-                    .url(url)
-                    .post(requestBody)
-                    .build()
+                val request = generateContentRequest(modelName, apiKey, jsonBody)
 
                 val response = httpClient.newCall(request).execute()
                 val responseString = response.body?.string() ?: ""
@@ -302,11 +291,7 @@ $currentContent
                 put("contents", contentsArray)
             }
 
-            val requestBody = jsonBody.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
-            val request = Request.Builder()
-                .url("$API_ENDPOINT_PREFIX$requestModel:generateContent?key=$apiKey")
-                .post(requestBody)
-                .build()
+            val request = generateContentRequest(requestModel, apiKey, jsonBody)
 
             val response = httpClient.newCall(request).execute()
             val responseString = response.body?.string() ?: ""
@@ -425,6 +410,23 @@ $currentContent
         }
     }
 }
+
+/**
+ * The one request shape every model call uses. The key goes in `x-goog-api-key`, never in the
+ * address: a query string is what proxies and request dumps keep. Three call sites used to build
+ * `...:generateContent?key=` themselves, so one rule now decides all three.
+ */
+private const val GENERATE_CONTENT_PREFIX = "https://generativelanguage.googleapis.com/v1beta/models/"
+
+internal fun generateContentRequest(
+    modelName: String,
+    apiKey: String,
+    jsonBody: JSONObject
+): Request = Request.Builder()
+    .url("$GENERATE_CONTENT_PREFIX$modelName:generateContent")
+    .header("x-goog-api-key", apiKey)
+    .post(jsonBody.toString().toRequestBody("application/json; charset=utf-8".toMediaType()))
+    .build()
 
 /**
  * The id the response says actually answered. Google does not always serve the alias that was asked
