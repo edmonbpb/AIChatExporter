@@ -84,6 +84,7 @@ class VerificationScreenTest {
     @Test
     fun checkButtonAsksTheProviderOnce() {
         account.verified = true
+        account.emailToReport = WAITING_EMAIL
         show()
         compose.onNodeWithTag(CHECK_TAG).performScrollTo().performClick()
         compose.waitUntil(timeoutMillis = 5_000) { viewModel.pendingVerification.value == null }

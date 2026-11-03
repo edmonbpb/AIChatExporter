@@ -67,6 +67,9 @@ class RealSignupVerificationTest {
     fun comingBackAfterTappingTheLinkOpensTheSession() = runTest {
         viewModel.setPendingVerification("new@user.com")
         account.verified = true
+        // The new rule only opens the session when the provider's confirmed address is the one on
+        // file, so the fake must report the pending address, not its default.
+        account.emailToReport = "new@user.com"
         account.signedInAs = AccountOutcome.SignedIn("new@user.com", "uid-1")
         var verified = false
         viewModel.checkVerificationNow(
