@@ -145,6 +145,10 @@ class FirebaseAccountService(private val auth: FirebaseAuth) : AccountService {
 
     override suspend fun currentEmail(): String? = refreshedUser()?.email
 
+    /** One reload carries both facts; a session the provider cannot identify reports as null. */
+    override suspend fun verifiedSession(): VerifiedSession? =
+        refreshedUser()?.takeIf { it.isEmailVerified }?.let { VerifiedSession(it.uid, it.email) }
+
     private suspend fun refreshedUser(): com.google.firebase.auth.FirebaseUser? {
         val user = auth.currentUser ?: return null
         return try {

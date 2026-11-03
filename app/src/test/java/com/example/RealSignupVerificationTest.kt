@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.core.app.ApplicationProvider
 import com.example.data.remote.auth.AccountOutcome
+import com.example.data.remote.auth.VerifiedSession
 import com.example.ui.viewmodel.MainViewModel
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -66,10 +67,9 @@ class RealSignupVerificationTest {
     @Test
     fun comingBackAfterTappingTheLinkOpensTheSession() = runTest {
         viewModel.setPendingVerification("new@user.com")
-        account.verified = true
-        // The new rule only opens the session when the provider's confirmed address is the one on
-        // file, so the fake must report the pending address, not its default.
-        account.emailToReport = "new@user.com"
+        // The wait check opens the session from one provider snapshot, not from the three separate
+        // questions, so the fake must report the pending address through that snapshot.
+        account.verifiedSessionToReport = VerifiedSession("uid-1", "new@user.com")
         account.signedInAs = AccountOutcome.SignedIn("new@user.com", "uid-1")
         var verified = false
         viewModel.checkVerificationNow(

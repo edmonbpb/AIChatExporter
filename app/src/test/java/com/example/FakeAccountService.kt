@@ -2,6 +2,7 @@ package com.example
 
 import com.example.data.remote.auth.AccountOutcome
 import com.example.data.remote.auth.AccountService
+import com.example.data.remote.auth.VerifiedSession
 
 /**
  * The account the flow is tested against. Every answer is a field a test sets, and every call is
@@ -16,6 +17,7 @@ class FakeAccountService : AccountService {
     var signedInAs: AccountOutcome = AccountOutcome.SignedIn("a@b.com", "uid-1")
     var uidToReport: String? = "uid-1"
     var emailToReport: String? = "a@b.com"
+    var verifiedSessionToReport: VerifiedSession? = null
 
     var registerCalls = 0
     var signInCalls = 0
@@ -24,6 +26,7 @@ class FakeAccountService : AccountService {
     var passwordResetCalls = 0
     var signOutCalls = 0
     var uidCalls = 0
+    var verifiedSessionCalls = 0
 
     override suspend fun register(email: String, password: String): AccountOutcome {
         registerCalls += 1
@@ -52,6 +55,11 @@ class FakeAccountService : AccountService {
 
     override suspend fun currentEmail(): String? = if (verified) emailToReport else null
 
+    override suspend fun verifiedSession(): VerifiedSession? {
+        verifiedSessionCalls += 1
+        return verifiedSessionToReport
+    }
+
     override suspend fun sendPasswordReset(email: String): AccountOutcome {
         passwordResetCalls += 1
         return passwordResetAnswer
@@ -70,6 +78,7 @@ class FakeAccountService : AccountService {
         signedInAs = AccountOutcome.SignedIn("a@b.com", "uid-1")
         uidToReport = "uid-1"
         emailToReport = "a@b.com"
+        verifiedSessionToReport = null
         registerCalls = 0
         signInCalls = 0
         sendVerificationCalls = 0
@@ -77,5 +86,6 @@ class FakeAccountService : AccountService {
         passwordResetCalls = 0
         signOutCalls = 0
         uidCalls = 0
+        verifiedSessionCalls = 0
     }
 }

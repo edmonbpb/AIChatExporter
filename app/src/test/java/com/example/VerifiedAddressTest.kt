@@ -5,10 +5,12 @@ import android.content.Context
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.core.app.ApplicationProvider
 import com.example.data.remote.auth.AccountOutcome
+import com.example.data.remote.auth.VerifiedSession
 import com.example.data.remote.auth.confirmedAddressOwnsWait
 import com.example.ui.viewmodel.MainViewModel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -51,9 +53,7 @@ class VerifiedAddressTest {
 
     @Test
     fun theWaitOpensOnlyWhenTheConfirmedAddressIsThePendingOne() {
-        account.verified = true
-        account.uidToReport = "uid-from-provider"
-        account.emailToReport = "owner@example.com"
+        account.verifiedSessionToReport = VerifiedSession("uid-from-provider", "owner@example.com")
 
         val model = MainViewModel(application, account, InMemoryKeyStorage())
         model.setPendingVerification("owner@example.com")
@@ -72,9 +72,7 @@ class VerifiedAddressTest {
 
     @Test
     fun aConfirmedAddressThatIsNotThePendingOneOpensNothing() {
-        account.verified = true
-        account.uidToReport = "uid-from-provider"
-        account.emailToReport = "someone.else@example.com"
+        account.verifiedSessionToReport = VerifiedSession("uid-from-provider", "someone.else@example.com")
 
         val model = MainViewModel(application, account, InMemoryKeyStorage())
         model.setPendingVerification("owner@example.com")
@@ -94,7 +92,8 @@ class VerifiedAddressTest {
 
     @Test
     fun anUnconfirmedAddressKeepsTheWaitUp() {
-        account.verified = false
+        account.verifiedSessionToReport = null
+
         val model = MainViewModel(application, account, InMemoryKeyStorage())
         model.setPendingVerification("owner@example.com")
         var opened = false
@@ -108,5 +107,29 @@ class VerifiedAddressTest {
 
         assertFalse("an unconfirmed address must not open the session", opened)
         assertEquals("owner@example.com", model.pendingVerification.value)
+    }
+
+    @Test
+    fun aSessionTheProviderCannotIdentifyStaysOnTheWait() {
+        // The provider answers that the address is confirmed, but its snapshot of who owns the
+        // session is unavailable — the answer every road but this one treats as "stay on the wait".
+        account.verified = true
+        account.verifiedSessionToReport = null
+
+        val model = MainViewModel(application, account, InMemoryKeyStorage())
+        model.setPendingVerification("owner@example.com")
+        var opened = false
+        var settled = false
+        model.checkVerificationNow(
+            onVerified = { opened = true },
+            onStillPending = { settled = true },
+            onError = { settled = true }
+        )
+        composeRule.waitUntil(timeoutMillis = 5_000) { settled || opened }
+
+        assertFalse("a session without a provider uid must not open the wait", opened)
+        assertEquals("the wait keeps its own address", "owner@example.com",
+            model.pendingVerification.value)
+        assertNull("no identity may be invented from the address", model.userProfile.value)
     }
 }

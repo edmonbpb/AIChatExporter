@@ -718,19 +718,23 @@ class MainViewModel(
     ) {
         val address = _pendingVerification.value ?: return onStillPending()
         viewModelScope.launch {
-            if (!account.isEmailVerified()) {
+            // One reload, one snapshot: identity and address from the same provider answer, so a
+            // reload that fails between two questions can never split the session in half.
+            val session = account.verifiedSession()
+            if (session == null) {
                 onStillPending()
                 return@launch
             }
             // The confirmation must belong to the address this screen is waiting on, and the session
             // must be written under the id the provider holds — the same id every other road uses.
-            val confirmed = account.currentEmail()
-            if (!confirmedAddressOwnsWait(address, confirmed)) {
+            // A session whose uid is unavailable stays on the wait; it is never opened under the
+            // address itself, which would give the address a second identity.
+            if (!confirmedAddressOwnsWait(address, session.email)) {
                 _userMessage.value = VERIFICATION_OTHER_ADDRESS_FA
                 onStillPending()
                 return@launch
             }
-            openSession(address, uid = account.currentUid() ?: address, role = ROLE_ORGANISATION)
+            openSession(address, uid = session.uid, role = ROLE_ORGANISATION)
             _userMessage.value = VERIFICATION_DONE_FA
             onVerified()
         }

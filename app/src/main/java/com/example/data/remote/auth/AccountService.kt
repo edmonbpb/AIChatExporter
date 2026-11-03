@@ -30,6 +30,12 @@ const val ACCOUNT_UNAVAILABLE_FA =
     "این بسته به سرویس حساب وصل نشده است؛ بستۀ به‌روز را از همان جایی که گرفتی دانلود کن."
 
 /**
+ * One provider snapshot: who the session belongs to and which address it carries, read together so a
+ * later reload cannot disagree with an earlier one. Null when the provider's answer is unavailable.
+ */
+data class VerifiedSession(val uid: String, val email: String?)
+
+/**
  * Every account rule the app needs, without a Firebase type in sight. Keeping the surface this small
  * is what lets the whole flow be tested on the JVM with a fake.
  */
@@ -44,6 +50,13 @@ interface AccountService {
 
     /** The address the provider holds open right now, or null when no session is open. */
     suspend fun currentEmail(): String?
+
+    /**
+     * One reload, one snapshot of the confirmed session, or null when there is none: unconfirmed,
+     * no session, or the provider would not answer. A caller that needs identity and address
+     * together must use this and never the three questions separately.
+     */
+    suspend fun verifiedSession(): VerifiedSession?
 
     suspend fun sendPasswordReset(email: String): AccountOutcome
 
@@ -65,6 +78,8 @@ object UnconfiguredAccountService : AccountService {
     override suspend fun currentUid(): String? = null
 
     override suspend fun currentEmail(): String? = null
+
+    override suspend fun verifiedSession(): VerifiedSession? = null
 
     override suspend fun sendPasswordReset(email: String): AccountOutcome =
         AccountOutcome.Unavailable
