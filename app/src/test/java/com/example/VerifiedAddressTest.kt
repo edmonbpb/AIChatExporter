@@ -7,7 +7,6 @@ import androidx.test.core.app.ApplicationProvider
 import com.example.data.remote.auth.AccountOutcome
 import com.example.data.remote.auth.confirmedAddressOwnsWait
 import com.example.ui.viewmodel.MainViewModel
-import java.util.concurrent.TimeUnit
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -98,16 +97,16 @@ class VerifiedAddressTest {
         account.verified = false
         val model = MainViewModel(application, account)
         model.setPendingVerification("owner@example.com")
+        var opened = false
         var settled = false
         model.checkVerificationNow(
-            onVerified = { settled = fail("opened") },
+            onVerified = { opened = true },
             onStillPending = { settled = true },
             onError = { settled = true }
         )
-        composeRule.idleFor(2, TimeUnit.SECONDS)
-        assertTrue(settled)
+        composeRule.waitUntil(timeoutMillis = 5_000) { settled || opened }
+
+        assertFalse("an unconfirmed address must not open the session", opened)
         assertEquals("owner@example.com", model.pendingVerification.value)
     }
-
-    private fun fail(message: String): Unit = throw AssertionError(message)
 }
