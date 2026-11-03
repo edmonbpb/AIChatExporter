@@ -1609,9 +1609,12 @@ class MainViewModel(
     fun setCustomGeminiApiKey(key: String) {
         val trimmed = key.trim()
         secrets.write(GEMINI_KEY_NAME, trimmed)
-        // When the fallback made both stores one file, the erase below would delete the key just
-        // written; only a genuinely separate clear copy may be dropped.
-        if (!sameStore(secrets, clearKeys)) clearKeys.write(GEMINI_KEY_NAME, "")
+        // The clear copy may be dropped only once the value is safe somewhere else: the secrets store
+        // must read it back first. When the fallback made both stores one file, erasing is forbidden
+        // outright — it would delete the key just written.
+        if (!sameStore(secrets, clearKeys) && secrets.read(GEMINI_KEY_NAME) == trimmed) {
+            clearKeys.write(GEMINI_KEY_NAME, "")
+        }
         GeminiClient.customApiKey = trimmed.ifEmpty { null }
         _userMessage.value = if (trimmed.isNotEmpty()) {
             "کلید Gemini روی همین دستگاه ذخیره شد؛ پالایش از این پس همین کلید را به Google می‌فرستد و در همین صفحه راستی‌آزمایی نمی‌شود."
@@ -1633,7 +1636,9 @@ class MainViewModel(
     fun setReaderApiKey(key: String) {
         val trimmed = key.trim()
         secrets.write(READER_KEY_NAME, trimmed)
-        if (!sameStore(secrets, clearKeys)) clearKeys.write(READER_KEY_NAME, "")
+        if (!sameStore(secrets, clearKeys) && secrets.read(READER_KEY_NAME) == trimmed) {
+            clearKeys.write(READER_KEY_NAME, "")
+        }
         com.example.domain.parser.SharedLinkExtractor.readerApiKey = trimmed.ifEmpty { null }
         _userMessage.value = if (trimmed.isEmpty()) {
             "کلید موتور خواندن پاک شد؛ لایۀ رندر بی‌کلید درخواست می‌فرستد و لینک Claude از همان راهِ کپیِ دستی هم وارد می‌شود."

@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.example.data.secure.GEMINI_KEY_NAME
+import com.example.data.secure.KeyStorage
 import com.example.data.secure.PlainKeyStorage
 import com.example.data.secure.shouldEraseLegacy
 import com.example.data.secure.valueAfterMigration
@@ -132,5 +133,25 @@ class StoredKeyTest {
         val clearPrefs = application.getSharedPreferences("aichat_auth_prefs", Context.MODE_PRIVATE)
         assertEquals("the value stays on the only file there is",
             "aliased-key-value", clearPrefs.getString("gemini_api_key", null))
+    }
+
+    /** A secrets store whose read-back never agrees with what was just written into it. */
+    private class ReadBackNeverAgrees : KeyStorage {
+        override val backingFile = "memory-never-agrees"
+        override val isEncrypted = false
+        override fun read(name: String): String = ""
+        override fun write(name: String, value: String) {}
+    }
+
+    @Test
+    fun theClearCopySurvivesUntilTheSecretStoreReadsTheNewKeyBack() {
+        val clear = PlainKeyStorage(application)
+        clear.write(GEMINI_KEY_NAME, "old-clear-copy")
+        val model = MainViewModel(application, FakeAccountService(), ReadBackNeverAgrees())
+
+        model.setCustomGeminiApiKey("freshly-typed-key")
+
+        assertEquals("the erase waits for a read-back that never came",
+            "old-clear-copy", clear.read(GEMINI_KEY_NAME))
     }
 }
