@@ -56,7 +56,7 @@ class ExitAppButtonTest {
         application.getSharedPreferences(AUTH_PREFS, Context.MODE_PRIVATE)
             .edit().clear().commit()
         account.reset()
-        viewModel = MainViewModel(application, account)
+        viewModel = MainViewModel(application, account, InMemoryKeyStorage())
     }
 
     @Test

@@ -78,7 +78,7 @@ class DriveDisconnectRestartTest {
      * later test of the class.
      */
     private fun newViewModel(account: AccountService = FakeAccountService()): MainViewModel =
-        MainViewModel(application, account).also { created += it }
+        MainViewModel(application, account, InMemoryKeyStorage()).also { created += it }
 
     @Before
     fun setUp() {

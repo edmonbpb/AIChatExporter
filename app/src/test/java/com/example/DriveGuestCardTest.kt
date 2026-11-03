@@ -97,7 +97,7 @@ class DriveGuestCardTest {
 
     @Test
     fun guestCardAsksForAGoogleSignInInsteadOfBlamingAMissingPermission() {
-        viewModel = MainViewModel(application, FakeAccountService())
+        viewModel = MainViewModel(application, FakeAccountService(), InMemoryKeyStorage())
         compose.setContent { MaterialTheme { SettingsScreen(viewModel) } }
 
         awaitStatus(SIGN_IN_FIRST)
@@ -123,7 +123,7 @@ class DriveGuestCardTest {
         // opening Settings re-probes the Drive connection on its own. Guest mode is retired, so the
         // session is put on disk before the view model starts, the way a guest device already holds it.
         seedAppSession(guest = true)
-        viewModel = MainViewModel(application, FakeAccountService())
+        viewModel = MainViewModel(application, FakeAccountService(), InMemoryKeyStorage())
         compose.setContent { MaterialTheme { SettingsScreen(viewModel) } }
 
         awaitStatus(SIGN_IN_FIRST)
@@ -145,7 +145,7 @@ class DriveGuestCardTest {
         seedCachedGoogleAccount()
         assertNotNull("fixture: Google's local cache holds an account", DriveAuth.lastAccount(application))
         seedAppSession(guest = true)
-        viewModel = MainViewModel(application, FakeAccountService())
+        viewModel = MainViewModel(application, FakeAccountService(), InMemoryKeyStorage())
         compose.setContent { MaterialTheme { SettingsScreen(viewModel) } }
 
         awaitStatus(SIGN_IN_FIRST)
@@ -171,7 +171,7 @@ class DriveGuestCardTest {
         seedCachedGoogleAccount()
         seedAppSession(guest = false)
         assertNotNull("fixture: Google's local cache holds an account", DriveAuth.lastAccount(application))
-        viewModel = MainViewModel(application, FakeAccountService())
+        viewModel = MainViewModel(application, FakeAccountService(), InMemoryKeyStorage())
         assertFalse("fixture: the app is in a session, not a guest one", viewModel.userProfile.value?.isGuest == true)
         compose.setContent { MaterialTheme { SettingsScreen(viewModel) } }
 
@@ -204,7 +204,8 @@ class DriveGuestCardTest {
             application,
             FakeAccountService().apply {
                 signInAnswer = AccountOutcome.SignedIn(NEW_SESSION_EMAIL, "uid-4")
-            }
+            },
+            InMemoryKeyStorage()
         )
         compose.setContent { MaterialTheme { SettingsScreen(viewModel) } }
         awaitStatus(CONSENT_MISSING)

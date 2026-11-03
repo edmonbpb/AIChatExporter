@@ -56,7 +56,7 @@ class HardExitTest {
     }
 
     /** A cold start: a view model built the way the app builds one when the process comes back. */
-    private fun freshModel(): MainViewModel = MainViewModel(application, account)
+    private fun freshModel(): MainViewModel = MainViewModel(application, account, InMemoryKeyStorage())
 
     @Test
     fun onlyAConfirmedSecondPressIsTheExitThatMustAskAgain() {

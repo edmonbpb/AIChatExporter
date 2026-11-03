@@ -51,7 +51,7 @@ class VerificationScreenTest {
     fun setUp() {
         application = ApplicationProvider.getApplicationContext()
         account.reset()
-        viewModel = MainViewModel(application, account).also {
+        viewModel = MainViewModel(application, account, InMemoryKeyStorage()).also {
             it.setPendingVerification(WAITING_EMAIL)
         }
     }

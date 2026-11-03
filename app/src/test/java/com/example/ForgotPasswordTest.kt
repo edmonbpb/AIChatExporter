@@ -50,7 +50,7 @@ class ForgotPasswordTest {
     fun setUp() {
         account.reset()
         account.passwordResetAnswer = AccountOutcome.EmailSent
-        viewModel = MainViewModel(ApplicationProvider.getApplicationContext(), account)
+        viewModel = MainViewModel(ApplicationProvider.getApplicationContext(), account, InMemoryKeyStorage())
     }
 
     @Test

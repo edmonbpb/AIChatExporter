@@ -37,7 +37,7 @@ class HeldShareTest {
 
     @Test
     fun aHeldShareIsKeptUntilSomethingFlushesIt() {
-        val model = MainViewModel(application, FakeAccountService())
+        val model = MainViewModel(application, FakeAccountService(), InMemoryKeyStorage())
         assertFalse("nothing is held at the start", model.heldShare.value != null)
 
         model.holdIncomingShare("hello from another app")
@@ -50,7 +50,7 @@ class HeldShareTest {
 
     @Test
     fun anEmptyShareIsNeverHeld() {
-        val model = MainViewModel(application, FakeAccountService())
+        val model = MainViewModel(application, FakeAccountService(), InMemoryKeyStorage())
         model.holdIncomingShare("   ")
         assertFalse(model.heldShare.value != null)
         assertFalse(model.flushHeldShare())
@@ -58,7 +58,7 @@ class HeldShareTest {
 
     @Test
     fun theSecondFlushFindsNothing() {
-        val model = MainViewModel(application, FakeAccountService())
+        val model = MainViewModel(application, FakeAccountService(), InMemoryKeyStorage())
         model.holdIncomingShare("text")
         assertTrue(model.flushHeldShare())
         assertFalse(model.flushHeldShare())

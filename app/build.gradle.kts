@@ -146,6 +146,11 @@ dependencies {
   implementation(platform(libs.firebase.bom))
   implementation(libs.firebase.auth)
 
+  // The two keys the owner types in. EncryptedSharedPreferences keeps them out of the clear prefs
+  // file that also carries the session; the artifact is pinned because the cache holds only this
+  // version and a public build must not need a network.
+  implementation(libs.androidx.security.crypto)
+
   // The mockable android.jar leaves org.json methods throwing "not mocked", so JVM tests of the
   // draft codec need the real implementation; the jar is vendored because no network is available.
   testImplementation(files("libs/json-20240303.jar"))

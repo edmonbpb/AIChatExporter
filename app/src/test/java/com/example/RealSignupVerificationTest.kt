@@ -44,7 +44,7 @@ class RealSignupVerificationTest {
             .edit().clear().commit()
         account.reset()
         account.registerAnswer = AccountOutcome.NeedsVerification("new@user.com")
-        viewModel = MainViewModel(application, account)
+        viewModel = MainViewModel(application, account, InMemoryKeyStorage())
     }
 
     @Test
@@ -59,7 +59,7 @@ class RealSignupVerificationTest {
     fun theWaitSurvivesANewProcessBecauseItIsTheOwnersOwnHalfFinishedSignup() {
         assertNull("fixture: this process starts with no wait on file", viewModel.pendingVerification.value)
         viewModel.setPendingVerification("new@user.com")
-        val restarted = MainViewModel(application, account)
+        val restarted = MainViewModel(application, account, InMemoryKeyStorage())
         assertEquals("new@user.com", restarted.pendingVerification.value)
     }
 

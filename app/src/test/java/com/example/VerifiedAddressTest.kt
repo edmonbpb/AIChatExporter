@@ -55,7 +55,7 @@ class VerifiedAddressTest {
         account.uidToReport = "uid-from-provider"
         account.emailToReport = "owner@example.com"
 
-        val model = MainViewModel(application, account)
+        val model = MainViewModel(application, account, InMemoryKeyStorage())
         model.setPendingVerification("owner@example.com")
         var opened = false
         var refused = false
@@ -76,7 +76,7 @@ class VerifiedAddressTest {
         account.uidToReport = "uid-from-provider"
         account.emailToReport = "someone.else@example.com"
 
-        val model = MainViewModel(application, account)
+        val model = MainViewModel(application, account, InMemoryKeyStorage())
         model.setPendingVerification("owner@example.com")
         var opened = false
         var settled = false
@@ -95,7 +95,7 @@ class VerifiedAddressTest {
     @Test
     fun anUnconfirmedAddressKeepsTheWaitUp() {
         account.verified = false
-        val model = MainViewModel(application, account)
+        val model = MainViewModel(application, account, InMemoryKeyStorage())
         model.setPendingVerification("owner@example.com")
         var opened = false
         var settled = false

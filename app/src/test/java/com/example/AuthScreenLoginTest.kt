@@ -60,7 +60,7 @@ class AuthScreenLoginTest {
         // otherwise. Nothing here reaches Firebase.
         account.reset()
         account.signInAnswer = AccountOutcome.SignedIn(SIGNED_IN_EMAIL, "uid-1")
-        viewModel = MainViewModel(application, account)
+        viewModel = MainViewModel(application, account, InMemoryKeyStorage())
         compose.setContent { MaterialTheme { AuthScreen(viewModel) } }
     }
 

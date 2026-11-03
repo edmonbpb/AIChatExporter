@@ -33,6 +33,12 @@ import com.example.data.remote.drive.DriveAuth
 import com.example.data.remote.auth.GoogleSignInOutcome
 import com.example.data.remote.auth.messageFa
 import com.example.data.remote.gemini.GeminiClient
+import com.example.data.secure.GEMINI_KEY_NAME
+import com.example.data.secure.KeyStorage
+import com.example.data.secure.PlainKeyStorage
+import com.example.data.secure.READER_KEY_NAME
+import com.example.data.secure.keyStorageFor
+import com.example.data.secure.readWithMigration
 import com.example.domain.bidi.BidiEngine
 import com.example.domain.exporter.DocumentExporter
 import com.example.domain.exporter.ExportOptions
@@ -166,7 +172,8 @@ internal fun applyGoogleSignInOutcome(
 
 class MainViewModel(
     application: Application,
-    private val account: AccountService = accountServiceFor(application)
+    private val account: AccountService = accountServiceFor(application),
+    private val secrets: KeyStorage = keyStorageFor(application)
 ) : AndroidViewModel(application) {
 
     // `by viewModels()` in `MainActivity` builds this class by asking the JVM for a constructor whose
@@ -181,6 +188,7 @@ class MainViewModel(
     private val exportDao = db.exportDao()
     private val converters = Converters()
     private val prefs = application.getSharedPreferences("aichat_auth_prefs", Context.MODE_PRIVATE)
+    private val clearKeys = PlainKeyStorage(application)
     private val draftStore = ResumeDraftStore(application)
 
     // User Authentication State
@@ -552,13 +560,15 @@ class MainViewModel(
         fontFamilyPreset.value = AppFontFamilyPreset.fromId(savedFontFamilyId)
 
         // موتور خواندن کلید را از همین فیلد می‌خواند؛ بدون این خط پس از هر اجرای تازه دوباره خالی می‌ماند.
-        val savedReaderKey: String? = prefs.getString("reader_api_key", null)?.trim()?.takeIf { it.isNotEmpty() }
+        val savedReaderKey: String? =
+            readWithMigration(secrets, clearKeys, READER_KEY_NAME).takeIf { it.isNotEmpty() }
         com.example.domain.parser.SharedLinkExtractor.readerApiKey = savedReaderKey
 
         // The same line for the same reason, one key over: setCustomGeminiApiKey below writes the key into
         // this prefs file, so "stored" in its toast means it is still there after a restart, not "until this
         // run ends". Nothing here ever logs or renders the value.
-        val savedGeminiKey: String? = prefs.getString("gemini_api_key", null)?.trim()?.takeIf { it.isNotEmpty() }
+        val savedGeminiKey: String? =
+            readWithMigration(secrets, clearKeys, GEMINI_KEY_NAME).takeIf { it.isNotEmpty() }
         GeminiClient.customApiKey = savedGeminiKey
 
         // The draft file is the only trace of a conversation the user never pressed «ذخیره» on;
@@ -1589,14 +1599,16 @@ class MainViewModel(
     // --- Settings & Gemini API Key ---
 
     /**
-     * Writes the key the same way setReaderApiKey writes its key below: one putString on the prefs this
-     * file already holds, read back at init. No request goes out to check the key, so neither the button nor
-     * this toast may claim it was validated. The value is never logged, never rendered and never put in a
-     * message.
+     * Writes the key into the secrets store and drops any old clear copy of it from the session's
+     * preferences, so the value stops sitting in plain text in `aichat_auth_prefs.xml`. No request
+     * goes out to check the key, so neither the button nor this toast may claim it was validated;
+     * «روی همین دستگاه ذخیره شد» stays true because a restart reads the same store back. The value
+     * is never logged, never rendered and never put in a message.
      */
     fun setCustomGeminiApiKey(key: String) {
         val trimmed = key.trim()
-        prefs.edit().putString("gemini_api_key", trimmed).apply()
+        secrets.write(GEMINI_KEY_NAME, trimmed)
+        clearKeys.write(GEMINI_KEY_NAME, "")
         GeminiClient.customApiKey = trimmed.ifEmpty { null }
         _userMessage.value = if (trimmed.isNotEmpty()) {
             "کلید Gemini روی همین دستگاه ذخیره شد؛ پالایش از این پس همین کلید را به Google می‌فرستد و در همین صفحه راستی‌آزمایی نمی‌شود."
@@ -1609,7 +1621,7 @@ class MainViewModel(
     fun hasValidApiKey(): Boolean = GeminiClient.hasValidApiKey()
 
     /** Only what this device stored. getActiveApiKey() would also hand back the key baked into the build. */
-    fun getStoredGeminiApiKey(): String = prefs.getString("gemini_api_key", null)?.trim() ?: ""
+    fun getStoredGeminiApiKey(): String = readWithMigration(secrets, clearKeys, GEMINI_KEY_NAME)
 
     /**
      * کلید موتور خواندن، مانند کلید Gemini، روی همین دستگاه ذخیره می‌شود؛ لایۀ رندر آن را از همان
@@ -1617,7 +1629,8 @@ class MainViewModel(
      */
     fun setReaderApiKey(key: String) {
         val trimmed = key.trim()
-        prefs.edit().putString("reader_api_key", trimmed).apply()
+        secrets.write(READER_KEY_NAME, trimmed)
+        clearKeys.write(READER_KEY_NAME, "")
         com.example.domain.parser.SharedLinkExtractor.readerApiKey = trimmed.ifEmpty { null }
         _userMessage.value = if (trimmed.isEmpty()) {
             "کلید موتور خواندن پاک شد؛ لایۀ رندر بی‌کلید درخواست می‌فرستد و لینک Claude از همان راهِ کپیِ دستی هم وارد می‌شود."
@@ -1626,5 +1639,5 @@ class MainViewModel(
         }
     }
 
-    fun getReaderApiKey(): String = prefs.getString("reader_api_key", null)?.trim() ?: ""
+    fun getReaderApiKey(): String = readWithMigration(secrets, clearKeys, READER_KEY_NAME)
 }

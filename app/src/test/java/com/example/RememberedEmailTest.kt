@@ -121,7 +121,8 @@ class RememberedEmailTest {
             application,
             FakeAccountService().apply {
                 signInAnswer = AccountOutcome.SignedIn(SAVED_EMAIL, "uid-2")
-            }
+            },
+            InMemoryKeyStorage()
         ).also { viewModels += it }
 
     private fun authPrefs() = application.getSharedPreferences(AUTH_PREFS, Context.MODE_PRIVATE)

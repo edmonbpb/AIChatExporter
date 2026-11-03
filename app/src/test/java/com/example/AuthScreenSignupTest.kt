@@ -106,7 +106,8 @@ class AuthScreenSignupTest {
             application,
             FakeAccountService().apply {
                 registerAnswer = AccountOutcome.SignedIn(EMAIL, "uid-9")
-            }
+            },
+            InMemoryKeyStorage()
         )
         compose.setContent { MaterialTheme { AuthScreen(viewModel) } }
         compose.onNodeWithTag("tab_signup").performClick()
