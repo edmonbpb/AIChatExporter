@@ -13,6 +13,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.core.app.ApplicationProvider
 import com.example.data.remote.auth.AccountOutcome
+import com.example.data.remote.auth.VerifiedSession
 import com.example.ui.screens.VerificationScreen
 import com.example.ui.viewmodel.MainViewModel
 import org.junit.Assert.assertEquals
@@ -83,19 +84,17 @@ class VerificationScreenTest {
 
     @Test
     fun checkButtonAsksTheProviderOnce() {
-        account.verified = true
-        account.emailToReport = WAITING_EMAIL
+        account.verifiedSessionToReport = VerifiedSession("uid-1", WAITING_EMAIL)
         show()
         compose.onNodeWithTag(CHECK_TAG).performScrollTo().performClick()
         compose.waitUntil(timeoutMillis = 5_000) { viewModel.pendingVerification.value == null }
-        assertEquals("one press asks the account once", 1, account.reloadCalls)
+        assertEquals("one press asks the account once", 1, account.verifiedSessionCalls)
         assertNull(viewModel.pendingVerification.value)
         compose.onNodeWithTag(NOTE_TAG).assertDoesNotExist()
     }
 
     @Test
     fun aCheckThatComesBackEmptyLeavesTheWaitOnScreenWithANote() {
-        account.verified = false
         show()
         compose.onNodeWithTag(CHECK_TAG).performScrollTo().performClick()
         // An unopened link is not a failure. The screen has to say so where the owner can read it, and
@@ -104,7 +103,7 @@ class VerificationScreenTest {
             compose.onAllNodesWithTag(NOTE_TAG).fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithText(STILL_PENDING).assertExists()
-        assertEquals("an unanswered check still asks the account once", 1, account.reloadCalls)
+        assertEquals("an unanswered check still asks the account once", 1, account.verifiedSessionCalls)
         assertEquals("the wait outlives a no", WAITING_EMAIL, viewModel.pendingVerification.value)
     }
 

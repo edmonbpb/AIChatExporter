@@ -145,9 +145,9 @@ class StoredKeyTest {
 
     @Test
     fun theClearCopySurvivesUntilTheSecretStoreReadsTheNewKeyBack() {
+        val model = MainViewModel(application, FakeAccountService(), ReadBackNeverAgrees())
         val clear = PlainKeyStorage(application)
         clear.write(GEMINI_KEY_NAME, "old-clear-copy")
-        val model = MainViewModel(application, FakeAccountService(), ReadBackNeverAgrees())
 
         model.setCustomGeminiApiKey("freshly-typed-key")
 
