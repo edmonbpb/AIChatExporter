@@ -14,6 +14,8 @@ class FakeAccountService : AccountService {
     var passwordResetAnswer: AccountOutcome = AccountOutcome.EmailSent
     var verified: Boolean = false
     var signedInAs: AccountOutcome = AccountOutcome.SignedIn("a@b.com", "uid-1")
+    var uidToReport: String? = "uid-1"
+    var emailToReport: String? = "a@b.com"
 
     var registerCalls = 0
     var signInCalls = 0
@@ -21,6 +23,7 @@ class FakeAccountService : AccountService {
     var reloadCalls = 0
     var passwordResetCalls = 0
     var signOutCalls = 0
+    var uidCalls = 0
 
     override suspend fun register(email: String, password: String): AccountOutcome {
         registerCalls += 1
@@ -42,6 +45,13 @@ class FakeAccountService : AccountService {
         return verified
     }
 
+    override suspend fun currentUid(): String? {
+        uidCalls += 1
+        return if (verified) uidToReport else null
+    }
+
+    override suspend fun currentEmail(): String? = if (verified) emailToReport else null
+
     override suspend fun sendPasswordReset(email: String): AccountOutcome {
         passwordResetCalls += 1
         return passwordResetAnswer
@@ -58,11 +68,14 @@ class FakeAccountService : AccountService {
         passwordResetAnswer = AccountOutcome.EmailSent
         verified = false
         signedInAs = AccountOutcome.SignedIn("a@b.com", "uid-1")
+        uidToReport = "uid-1"
+        emailToReport = "a@b.com"
         registerCalls = 0
         signInCalls = 0
         sendVerificationCalls = 0
         reloadCalls = 0
         passwordResetCalls = 0
         signOutCalls = 0
+        uidCalls = 0
     }
 }

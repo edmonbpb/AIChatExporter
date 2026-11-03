@@ -135,6 +135,26 @@ class FirebaseAccountService(private val auth: FirebaseAuth) : AccountService {
         }
     }
 
+    /**
+     * `reload()` first, so the answer is the provider's state now and not the copy kept since the
+     * last sign-in: the mail is confirmed in a browser, and only a reload brings it back.
+     */
+    override suspend fun currentUid(): String? = refreshedUser()?.uid
+
+    override suspend fun currentEmail(): String? = refreshedUser()?.email
+
+    private suspend fun refreshedUser(): com.google.firebase.auth.FirebaseUser? {
+        val user = auth.currentUser ?: return null
+        return try {
+            await(user.reload())
+            user
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     override suspend fun sendPasswordReset(email: String): AccountOutcome {
         val address = email.trim()
         if (!emailLooksValid(address)) return AccountOutcome.Failed(EMAIL_INVALID_FA)
@@ -196,6 +216,17 @@ class FirebaseAccountService(private val auth: FirebaseAuth) : AccountService {
         const val NO_SESSION_FA = "نشستِ تأییدنشده‌ای باز نمانده است؛ دوباره حساب بساز یا وارد شو."
         const val UNKNOWN_FA = "کار با حساب انجام نشد؛ کمی بعد دوباره امتحان کن."
     }
+}
+
+/**
+ * Whether the address the provider just confirmed is the address this wait is about. Ignoring case
+ * and surrounding space, because the provider normalises both and the user typed one of them.
+ * A null on either side owns nothing.
+ */
+internal fun confirmedAddressOwnsWait(pending: String?, providerEmail: String?): Boolean {
+    val left = pending?.trim().orEmpty()
+    val right = providerEmail?.trim().orEmpty()
+    return left.isNotEmpty() && right.isNotEmpty() && left.equals(right, ignoreCase = true)
 }
 
 /**

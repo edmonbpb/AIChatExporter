@@ -38,6 +38,13 @@ interface AccountService {
     suspend fun signIn(email: String, password: String): AccountOutcome
     suspend fun sendVerification(): AccountOutcome
     suspend fun isEmailVerified(): Boolean
+
+    /** The id the provider holds open right now, or null when no session is open. */
+    suspend fun currentUid(): String?
+
+    /** The address the provider holds open right now, or null when no session is open. */
+    suspend fun currentEmail(): String?
+
     suspend fun sendPasswordReset(email: String): AccountOutcome
 
     /** Drops this device's claim to the account. Never touches the user's library. */
@@ -54,6 +61,10 @@ object UnconfiguredAccountService : AccountService {
     override suspend fun sendVerification(): AccountOutcome = AccountOutcome.Unavailable
 
     override suspend fun isEmailVerified(): Boolean = false
+
+    override suspend fun currentUid(): String? = null
+
+    override suspend fun currentEmail(): String? = null
 
     override suspend fun sendPasswordReset(email: String): AccountOutcome =
         AccountOutcome.Unavailable

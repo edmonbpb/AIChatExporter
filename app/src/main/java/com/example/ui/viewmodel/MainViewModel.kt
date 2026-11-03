@@ -28,6 +28,7 @@ import com.example.data.remote.auth.AccountOutcome
 import com.example.data.remote.auth.AccountService
 import com.example.data.remote.auth.GoogleAuthManager
 import com.example.data.remote.auth.accountServiceFor
+import com.example.data.remote.auth.confirmedAddressOwnsWait
 import com.example.data.remote.drive.DriveAuth
 import com.example.data.remote.auth.GoogleSignInOutcome
 import com.example.data.remote.auth.messageFa
@@ -142,6 +143,8 @@ private const val SIGN_IN_DONE_FA = "ورود به حساب با موفقیت ا
 private const val SIGN_UP_DONE_FA = "حساب ساخته شد؛ حالا ایمیل را تأیید کن."
 private const val VERIFICATION_RESENT_FA = "ایمیل تأیید دوباره فرستاده شد."
 private const val VERIFICATION_DONE_FA = "ایمیل تأیید شد؛ حساب باز شد."
+private const val VERIFICATION_OTHER_ADDRESS_FA =
+    "ایمیلِ دیگری تأیید شده است؛ برای همین نشانی منتظر می‌مانیم."
 private const val VERIFICATION_LEFT_FA = "از تأیید ایمیل بیرون آمدی؛ برای ادامه دوباره وارد شو."
 private const val PASSWORD_RESET_SENT_FA = "راهنمای تغییر رمز به ایمیل تو فرستاده شد."
 private const val ROLE_ORGANISATION = "کاربر سازمان"
@@ -704,16 +707,21 @@ class MainViewModel(
     ) {
         val address = _pendingVerification.value ?: return onStillPending()
         viewModelScope.launch {
-            if (account.isEmailVerified()) {
-                // A confirmation that came back from the mail carries no credential object to read an
-                // id off, so the address stands in for it: it is the same key the profile was written
-                // under at register time.
-                openSession(address, uid = address, role = ROLE_ORGANISATION)
-                _userMessage.value = VERIFICATION_DONE_FA
-                onVerified()
-            } else {
+            if (!account.isEmailVerified()) {
                 onStillPending()
+                return@launch
             }
+            // The confirmation must belong to the address this screen is waiting on, and the session
+            // must be written under the id the provider holds — the same id every other road uses.
+            val confirmed = account.currentEmail()
+            if (!confirmedAddressOwnsWait(address, confirmed)) {
+                _userMessage.value = VERIFICATION_OTHER_ADDRESS_FA
+                onStillPending()
+                return@launch
+            }
+            openSession(address, uid = account.currentUid() ?: address, role = ROLE_ORGANISATION)
+            _userMessage.value = VERIFICATION_DONE_FA
+            onVerified()
         }
     }
 
