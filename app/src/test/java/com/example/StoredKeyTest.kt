@@ -80,7 +80,7 @@ class StoredKeyTest {
         assertFalse("the clear file must not keep the key", clearPrefs.contains("gemini_api_key"))
         assertFalse(
             "no clear file may hold the value either",
-            clearPrefs.allValues.values.any { it.toString().contains("secret-value") }
+            clearPrefs.all.values.any { entry -> entry.toString().contains("secret-value") }
         )
     }
 
