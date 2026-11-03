@@ -11,10 +11,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -44,7 +44,7 @@ fun AppTopBar(
     onSaveSession: () -> Unit,
     onToggleBookmark: () -> Unit,
     onNewSession: () -> Unit,
-    onLogout: () -> Unit,
+    onExitApp: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     TopAppBar(
@@ -158,12 +158,12 @@ fun AppTopBar(
             // Deliberately the last action: the icons above keep the positions the owner already
             // knows, and the bar is crowded enough on a 1080-wide phone without a reshuffle.
             IconButton(
-                onClick = onLogout,
-                modifier = Modifier.testTag("logout_top_button")
+                onClick = onExitApp,
+                modifier = Modifier.testTag("exit_app_button")
             ) {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ExitToApp,
-                    contentDescription = "خروج از حساب",
+                    imageVector = Icons.Default.PowerSettingsNew,
+                    contentDescription = "خروج از برنامه",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }

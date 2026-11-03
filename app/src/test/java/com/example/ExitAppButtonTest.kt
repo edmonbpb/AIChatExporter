@@ -27,18 +27,19 @@ import org.robolectric.annotation.LooperMode
  * The exit the owner asked to see at the top of the screen, in two halves.
  *
  * The first test reads the bar itself: the button exists under its own tag and a tap reaches the
- * callback it was handed - the bar is told what an exit means by its caller, so a bar that drew the
- * icon and called something else would be the same defect as no button at all.
+ * exit callback it was handed - the bar is told what an exit means by its caller, so a bar that
+ * drew the icon and called something else (the new-session action, or the account sign-out) would
+ * be the same defect as no button at all.
  *
- * The second test reads the exit that actually happens: `logout()` must end the provider's session,
- * not only the local prefs. A session that survives in the account service while the profile is null
- * is the hole a reviewer flagged - the next feature that asks the provider who is signed in would get
- * an answer the screen has already denied.
+ * The second test reads the account sign-out that still lives in Settings: `logout()` must end the
+ * provider's session, not only the local prefs. A session that survives in the account service while
+ * the profile is null is the hole a reviewer flagged - the next feature that asks the provider who
+ * is signed in would get an answer the screen has already denied.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 @LooperMode(LooperMode.Mode.PAUSED)
-class TopBarLogoutTest {
+class ExitAppButtonTest {
 
     @get:Rule
     val composeRule = createComposeRule()
@@ -60,7 +61,7 @@ class TopBarLogoutTest {
 
     @Test
     fun theBarCarriesAnExitThatCallsOnlyTheExit() {
-        var logoutCalls = 0
+        var exitCalls = 0
         var newSessionCalls = 0
         composeRule.setContent {
             MaterialTheme {
@@ -70,14 +71,14 @@ class TopBarLogoutTest {
                     onSaveSession = { },
                     onToggleBookmark = { },
                     onNewSession = { newSessionCalls += 1 },
-                    onLogout = { logoutCalls += 1 }
+                    onExitApp = { exitCalls += 1 }
                 )
             }
         }
 
-        composeRule.onNodeWithTag("logout_top_button").performClick()
+        composeRule.onNodeWithTag("exit_app_button").performClick()
 
-        assertEquals("one tap is one exit, no more", 1, logoutCalls)
+        assertEquals("one tap is one exit, no more", 1, exitCalls)
         assertEquals("the exit must not be wired to the new-session action", 0, newSessionCalls)
     }
 

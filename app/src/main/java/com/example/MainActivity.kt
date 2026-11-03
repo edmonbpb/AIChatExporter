@@ -41,7 +41,6 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalTextToolbar
 import androidx.compose.ui.platform.TextToolbar
 import androidx.compose.ui.platform.TextToolbarStatus
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.unit.LayoutDirection
@@ -212,7 +211,7 @@ class MainActivity : FragmentActivity() {
                                             )
                                         }
                                     } else {
-                                        MainAppScreen(viewModel = viewModel)
+                                        MainAppScreen(viewModel = viewModel, onExitApp = ::exitTheApp)
                                     }
                                 }
                             }
@@ -298,6 +297,18 @@ class MainActivity : FragmentActivity() {
         }
     }
 
+    /**
+     * The one exit the owner asked for: double Back on the root tab and the Power button in the top
+     * bar both come through here, so the two roads cannot drift apart. The process is ended on
+     * purpose: a finished task can stay listed by some handsets, and this button is the owner asking
+     * to leave. The account session is left alone - only the next start re-asks whether to show it.
+     */
+    private fun exitTheApp() {
+        viewModel.markHardExit()
+        finishAndRemoveTask()
+        exitProcess(0)
+    }
+
     private fun handleIncomingIntent(intent: Intent?) {
         if (intent?.action == Intent.ACTION_SEND && intent.type == "text/plain") {
             val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)?.trim()
@@ -318,7 +329,7 @@ class MainActivity : FragmentActivity() {
 }
 
 @Composable
-fun MainAppScreen(viewModel: MainViewModel) {
+fun MainAppScreen(viewModel: MainViewModel, onExitApp: () -> Unit) {
     val currentScreen by viewModel.currentScreen.collectAsState()
     val activeSession by viewModel.activeSession.collectAsState()
     val exportState by viewModel.exportState.collectAsState()
@@ -327,9 +338,6 @@ fun MainAppScreen(viewModel: MainViewModel) {
         exportState.lastExportedRecord?.sessionId == session.id
     } ?: false
     var showNewSessionDialog by remember { mutableStateOf(false) }
-    // The top bar's exit asks before it acts: the same question the Settings card asks, so the two
-    // roads to a sign-out cannot disagree about what happens to the work already on the device.
-    var showLogoutDialog by remember { mutableStateOf(false) }
     // One automatic backup per local calendar day, on the first open of that day.
     LaunchedEffect(Unit) { viewModel.autoBackUpIfDue() }
     val userMessage by viewModel.userMessage.collectAsState()
@@ -388,18 +396,7 @@ fun MainAppScreen(viewModel: MainViewModel) {
             if (hardExitAfterDoublePress(isExitDoublePress(currentTime, lastBackPressTime))) {
                 // The second press is the exit the owner asked for, so the next start has to ask again;
                 // markHardExit writes that decision to disk and leaves the account where it is.
-                viewModel.markHardExit()
-                // The task is gone, but Android may keep the process warm and some handsets keep
-                // listing it in the task manager. Ending the process is what makes that list honest
-                // about an app the owner asked to leave. A single Home press never comes through here.
-                // The exit waits for a real task removal on purpose: with no Activity to remove there
-                // is no recents row to clear, and ending the process anyway would leave the very task
-                // this exit was meant to delete.
-                val hostActivity = context as? android.app.Activity
-                if (hostActivity != null) {
-                    hostActivity.finishAndRemoveTask()
-                    exitProcess(0)
-                }
+                onExitApp()
             } else {
                 lastBackPressTime = currentTime
                 android.widget.Toast.makeText(
@@ -419,7 +416,7 @@ fun MainAppScreen(viewModel: MainViewModel) {
                 onSaveSession = { viewModel.saveActiveSessionToDatabase() },
                 onToggleBookmark = { viewModel.toggleBookmarkActiveSession() },
                 onNewSession = { showNewSessionDialog = true },
-                onLogout = { showLogoutDialog = true }
+                onExitApp = onExitApp
             )
         },
         bottomBar = {
@@ -501,30 +498,6 @@ fun MainAppScreen(viewModel: MainViewModel) {
                         ) { Text("ذخیره کن و ببند") }
                     }
                     TextButton(onClick = { showNewSessionDialog = false }) { Text("انصراف") }
-                }
-            }
-        )
-    }
-
-    // The top bar's exit. Same title and the same promise about the files as the Settings dialog:
-    // signing out ends the account session, never the conversations on this device.
-    if (showLogoutDialog) {
-        AlertDialog(
-            onDismissRequest = { showLogoutDialog = false },
-            title = { Text("خروج از حساب کاربری") },
-            text = { Text("آیا مطمئن هستید که می‌خواهید از حساب کاربری خارج شوید؟ سوابق مکالمات و اسناد صادرشده شما در حافظه این دستگاه محفوظ خواهند ماند.") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showLogoutDialog = false
-                        viewModel.logout()
-                    },
-                    modifier = Modifier.testTag("logout_confirm_button")
-                ) { Text("خروج") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showLogoutDialog = false }) {
-                    Text("انصراف")
                 }
             }
         )

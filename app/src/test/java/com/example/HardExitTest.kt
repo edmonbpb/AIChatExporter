@@ -156,12 +156,17 @@ class HardExitTest {
         val branchStart = source.indexOf("hardExitAfterDoublePress(")
         val branch = source.substring(branchStart, elseStart)
 
-        val mark = branch.indexOf("viewModel.markHardExit()")
-        val remove = branch.indexOf("finishAndRemoveTask()")
-        val end = branch.indexOf("exitProcess(0)")
-        assertTrue("the confirmed exit must mark the next start: $branch", mark >= 0)
-        assertTrue("the confirmed exit must remove the task after the mark: $branch", remove > mark)
-        assertTrue("the process must end last, or the row outlives the exit: $branch", end > remove)
+        // Double Back and the top-bar exit button share one sequence, so the order is asserted where
+        // the sequence lives. Reading it out of the back handler alone would pass while the shared
+        // helper ended the process before the task was removed.
+        val exitBody = source.substringAfter("private fun exitTheApp() {").substringBefore("private fun handleIncomingIntent")
+        val mark = exitBody.indexOf("viewModel.markHardExit()")
+        val remove = exitBody.indexOf("finishAndRemoveTask()")
+        val end = exitBody.indexOf("exitProcess(0)")
+        assertTrue("the confirmed exit must mark the next start: $exitBody", mark >= 0)
+        assertTrue("the confirmed exit must remove the task after the mark: $exitBody", remove > mark)
+        assertTrue("the process must end last, or the row outlives the exit: $exitBody", end > remove)
+        assertTrue("the back handler must come through that one exit: $branch", branch.contains("onExitApp()"))
 
         // Polarity, not only order: the call must hand the policy the double-press predicate, not a
         // literal and not its negation, or the exit fires on the first press. The predicate is named
