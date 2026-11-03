@@ -1,10 +1,12 @@
 package com.example.domain.exporter
 
 import android.content.ClipData
+import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.PersistableBundle
 import android.widget.Toast
 import androidx.core.content.FileProvider
 import com.example.data.model.ExportRecord
@@ -68,8 +70,20 @@ object FileShareHelper {
 
     fun copyToClipboard(context: Context, label: String, text: String) {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        val clip = ClipData.newPlainText(label, text)
-        clipboard.setPrimaryClip(clip)
+        clipboard.setPrimaryClip(sensitiveClip(label, text))
         Toast.makeText(context, "متن در حافظه کپی شد ✨", Toast.LENGTH_SHORT).show()
     }
+}
+
+/**
+ * The clip this app hands the system. The chat is what is being copied, so the copy is marked
+ * sensitive: on Android 13 and newer the system keeps the popup preview from showing the text, and
+ * the flag is ignored, not rejected, on anything older.
+ */
+internal fun sensitiveClip(label: String, text: String): ClipData {
+    val clip = ClipData.newPlainText(label, text)
+    val extras = PersistableBundle()
+    extras.putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true)
+    clip.description.setExtras(extras)
+    return clip
 }
