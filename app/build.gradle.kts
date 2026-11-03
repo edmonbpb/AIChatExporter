@@ -100,6 +100,8 @@ secrets {
   }
 }
 
+// WARN, not ERROR: a checkout without google-services.json must still build (the file is
+// gitignored). scripts/security-gate.sh is what stops an unconfigured artifact from being handed out.
 googleServices { missingGoogleServicesStrategy = MissingGoogleServicesStrategy.WARN }
 
 dependencies {
