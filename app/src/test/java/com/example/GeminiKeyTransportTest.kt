@@ -1,5 +1,6 @@
 package com.example
 
+import com.example.data.remote.gemini.generateContentRequest
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -35,8 +36,8 @@ class GeminiKeyTransportTest {
     fun theAddressStillNamesTheModelAndTheOperation() {
         val request = generateContentRequest("gemini-2.5-flash", "k", body)
         assertTrue(
-            request.url.toString().endsWith("/v1beta/models/gemini-2.5-flash:generateContent"),
-            request.url.toString()
+            "the address must still name the model and the operation: ${request.url}",
+            request.url.toString().endsWith("/v1beta/models/gemini-2.5-flash:generateContent")
         )
         assertEquals("POST", request.method)
     }
