@@ -3,9 +3,11 @@ package com.example
 import android.app.Application
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.example.data.secure.GEMINI_KEY_NAME
 import com.example.data.secure.PlainKeyStorage
 import com.example.data.secure.shouldEraseLegacy
 import com.example.data.secure.valueAfterMigration
+import com.example.data.secure.readWithMigration
 import com.example.ui.viewmodel.MainViewModel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -102,5 +104,33 @@ class StoredKeyTest {
         model.setReaderApiKey("")
 
         assertEquals("", memory.read("reader_api_key"))
+    }
+
+    @Test
+    fun theFallbackStoreThatAliasesTheClearFileKeepsTheKey() {
+        val application = ApplicationProvider.getApplicationContext<Application>()
+        val one = PlainKeyStorage(application)
+        val two = PlainKeyStorage(application)
+        one.write(GEMINI_KEY_NAME, "paid-key-value")
+
+        val read = readWithMigration(two, one, GEMINI_KEY_NAME)
+
+        assertEquals("paid-key-value", read)
+        assertEquals("the aliasing store must not erase the only copy",
+            "paid-key-value", one.read(GEMINI_KEY_NAME))
+    }
+
+    @Test
+    fun theSetterOnAnAliasedPairStillLeavesTheKeyReadable() {
+        // The broken-keystore fallback: both doors of the model open onto the clear file.
+        val model = MainViewModel(application, FakeAccountService(), PlainKeyStorage(application))
+
+        model.setCustomGeminiApiKey("aliased-key-value")
+
+        assertEquals("the key just written must survive its own setter",
+            "aliased-key-value", model.getStoredGeminiApiKey())
+        val clearPrefs = application.getSharedPreferences("aichat_auth_prefs", Context.MODE_PRIVATE)
+        assertEquals("the value stays on the only file there is",
+            "aliased-key-value", clearPrefs.getString("gemini_api_key", null))
     }
 }

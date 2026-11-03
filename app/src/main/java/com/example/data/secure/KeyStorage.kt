@@ -11,6 +11,9 @@ import androidx.security.crypto.MasterKey
  * the session.
  */
 interface KeyStorage {
+    /** The preferences file this store reads and writes. Two stores over one file alias each other. */
+    val backingFile: String
+
     /** The value for [name], or the empty string. Never logs what it read. */
     fun read(name: String): String
 
@@ -20,6 +23,9 @@ interface KeyStorage {
     /** Whether the bytes on this device's disk are ciphertext. The screen must not claim more. */
     val isEncrypted: Boolean
 }
+
+/** True when the two stores would read and write the same file: erasing one erases the other. */
+internal fun sameStore(a: KeyStorage, b: KeyStorage): Boolean = a.backingFile == b.backingFile
 
 private const val SECRETS_FILE = "aichat_secret_keys"
 private const val LEGACY_FILE = "aichat_auth_prefs"
@@ -43,6 +49,7 @@ internal fun shouldEraseLegacy(legacy: String, stored: String): Boolean =
     legacy.isNotBlank() && stored.isNotBlank()
 
 class EncryptedKeyStorage(context: Context) : KeyStorage {
+    override val backingFile = SECRETS_FILE
     override val isEncrypted = true
 
     private val prefs: SharedPreferences by lazy {
@@ -72,6 +79,7 @@ class EncryptedKeyStorage(context: Context) : KeyStorage {
  * Reads of an old install still find a value here, and the value moves on the first write.
  */
 class PlainKeyStorage(context: Context) : KeyStorage {
+    override val backingFile = LEGACY_FILE
     override val isEncrypted = false
 
     private val prefs = context.getSharedPreferences(LEGACY_FILE, Context.MODE_PRIVATE)
@@ -99,9 +107,14 @@ fun keyStorageFor(context: Context): KeyStorage = try {
 /**
  * Reads through [secrets], moving a value found only in the clear file. Returns the value the caller
  * should use now. One place, so neither of the two settings screens can forget the move.
+ *
+ * When both stores sit on the same file (the broken-keystore fallback wraps the clear file itself),
+ * there is no migration to run and no second copy to erase: read and never write, or the erase
+ * below would delete the only copy of the key.
  */
 internal fun readWithMigration(secrets: KeyStorage, clear: KeyStorage, name: String): String {
     val stored = secrets.read(name)
+    if (sameStore(secrets, clear)) return stored
     val legacy = clear.read(name)
     val value = valueAfterMigration(stored, legacy)
     if (shouldEraseLegacy(legacy, value)) {

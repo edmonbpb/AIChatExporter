@@ -39,6 +39,7 @@ import com.example.data.secure.PlainKeyStorage
 import com.example.data.secure.READER_KEY_NAME
 import com.example.data.secure.keyStorageFor
 import com.example.data.secure.readWithMigration
+import com.example.data.secure.sameStore
 import com.example.domain.bidi.BidiEngine
 import com.example.domain.exporter.DocumentExporter
 import com.example.domain.exporter.ExportOptions
@@ -1608,7 +1609,9 @@ class MainViewModel(
     fun setCustomGeminiApiKey(key: String) {
         val trimmed = key.trim()
         secrets.write(GEMINI_KEY_NAME, trimmed)
-        clearKeys.write(GEMINI_KEY_NAME, "")
+        // When the fallback made both stores one file, the erase below would delete the key just
+        // written; only a genuinely separate clear copy may be dropped.
+        if (!sameStore(secrets, clearKeys)) clearKeys.write(GEMINI_KEY_NAME, "")
         GeminiClient.customApiKey = trimmed.ifEmpty { null }
         _userMessage.value = if (trimmed.isNotEmpty()) {
             "کلید Gemini روی همین دستگاه ذخیره شد؛ پالایش از این پس همین کلید را به Google می‌فرستد و در همین صفحه راستی‌آزمایی نمی‌شود."
@@ -1630,7 +1633,7 @@ class MainViewModel(
     fun setReaderApiKey(key: String) {
         val trimmed = key.trim()
         secrets.write(READER_KEY_NAME, trimmed)
-        clearKeys.write(READER_KEY_NAME, "")
+        if (!sameStore(secrets, clearKeys)) clearKeys.write(READER_KEY_NAME, "")
         com.example.domain.parser.SharedLinkExtractor.readerApiKey = trimmed.ifEmpty { null }
         _userMessage.value = if (trimmed.isEmpty()) {
             "کلید موتور خواندن پاک شد؛ لایۀ رندر بی‌کلید درخواست می‌فرستد و لینک Claude از همان راهِ کپیِ دستی هم وارد می‌شود."
