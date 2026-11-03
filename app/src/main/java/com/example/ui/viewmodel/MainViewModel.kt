@@ -230,6 +230,40 @@ class MainViewModel(
     val urlExtractionProgress = MutableStateFlow<String?>(null)
     val urlExtractionError = MutableStateFlow<String?>(null)
 
+    /**
+     * A transcript or link handed to the app by another app while a gate held the workspace back.
+     * Nothing is imported from it here; the workspace screen takes it once, on the first composition
+     * it is actually shown on.
+     */
+    val heldShare = MutableStateFlow<String?>(null)
+
+    fun holdIncomingShare(text: String) {
+        val kept = text.trim().takeIf { it.isNotEmpty() } ?: return
+        heldShare.value = kept
+    }
+
+    /** Takes the held share, if any. True when the caller has work to do with it. */
+    fun flushHeldShare(): Boolean = heldShare.value?.let { held ->
+        heldShare.value = null
+        applyIncomingShare(held)
+    } ?: false
+
+    /** The one place that decides what an incoming share does; the gate never calls this directly. */
+    private fun applyIncomingShare(text: String): Boolean {
+        val isLink = com.example.domain.parser.SharedLinkExtractor.containsUrl(text) && text.length < 500
+        if (isLink) {
+            val url = com.example.domain.parser.SharedLinkExtractor.extractUrl(text) ?: text
+            sharedUrlInput.value = url
+            importMode.value = 0
+            extractFromSharedLink(url)
+        } else {
+            rawInputText.value = text
+            importMode.value = 1
+            parseAndLoadTranscript()
+        }
+        return true
+    }
+
     // Active Session (Empty by default for real commercial usage)
     private val _activeSession = MutableStateFlow<ChatSession?>(null)
     val activeSession: StateFlow<ChatSession?> = _activeSession.asStateFlow()

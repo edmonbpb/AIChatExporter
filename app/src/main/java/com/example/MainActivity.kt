@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -56,6 +57,7 @@ import com.example.ui.navigation.shouldOfferSecurityEntry
 import com.example.ui.navigation.shouldShowAuth
 import com.example.ui.navigation.shouldShowLock
 import com.example.ui.navigation.shouldShowVerification
+import com.example.ui.navigation.workspaceMayOpen
 import com.example.ui.screens.AuthScreen
 import com.example.ui.screens.DistillationScreen
 import com.example.ui.screens.ExportStudioScreen
@@ -310,22 +312,37 @@ class MainActivity : FragmentActivity() {
     }
 
     private fun handleIncomingIntent(intent: Intent?) {
-        if (intent?.action == Intent.ACTION_SEND && intent.type == "text/plain") {
-            val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)?.trim()
-            if (!sharedText.isNullOrBlank()) {
-                if (com.example.domain.parser.SharedLinkExtractor.containsUrl(sharedText) && sharedText.length < 500) {
-                    val url = com.example.domain.parser.SharedLinkExtractor.extractUrl(sharedText) ?: sharedText
-                    viewModel.sharedUrlInput.value = url
-                    viewModel.importMode.value = 0
-                    viewModel.extractFromSharedLink(url)
-                } else {
-                    viewModel.rawInputText.value = sharedText
-                    viewModel.importMode.value = 1
-                    viewModel.parseAndLoadTranscript()
-                }
-            }
+        if (intent?.action != Intent.ACTION_SEND || intent.type != "text/plain") return
+        val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)?.trim() ?: return
+        if (sharedText.isEmpty()) return
+
+        val mayOpen = workspaceMayOpen(
+            signedIn = viewModel.userProfile.value != null,
+            manualSignInRequested = viewModel.lockManualSignIn.value,
+            signInRequiredOnStart = viewModel.signInRequiredOnStart.value,
+            pendingVerificationEmail = viewModel.pendingVerification.value,
+            lockInWay = lockIsInWay()
+        )
+        if (!mayOpen) {
+            viewModel.holdIncomingShare(sharedText)
+            Toast.makeText(
+                this,
+                "متنِ به‌اشتراک‌گذاشته‌شده نگه داشته شد؛ بعد از بازِ‌کردنِ قفل و پاسخِ ایمیل وارد می‌شود.",
+                Toast.LENGTH_SHORT
+            ).show()
+            return
         }
+        viewModel.holdIncomingShare(sharedText)
+        viewModel.flushHeldShare()
     }
+
+    /** The same device-lock answer the root screen computes, read off the view model. */
+    private fun lockIsInWay(): Boolean =
+        shouldShowLock(
+            viewModel.appLockEnabled.value,
+            getSystemService(KeyguardManager::class.java)?.isDeviceSecure == true,
+            viewModel.sessionUnlocked.value
+        ) && !viewModel.lockManualSignIn.value
 }
 
 @Composable
@@ -340,6 +357,8 @@ fun MainAppScreen(viewModel: MainViewModel, onExitApp: () -> Unit) {
     var showNewSessionDialog by remember { mutableStateOf(false) }
     // One automatic backup per local calendar day, on the first open of that day.
     LaunchedEffect(Unit) { viewModel.autoBackUpIfDue() }
+    // A share held back by a gate is taken the first time this screen is really shown.
+    LaunchedEffect(Unit) { viewModel.flushHeldShare() }
     val userMessage by viewModel.userMessage.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current

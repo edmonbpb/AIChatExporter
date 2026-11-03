@@ -41,3 +41,23 @@ fun shouldOfferSecurityEntry(
  * [isExitDoublePress] so the timing rule and the consequence of the exit can be tested on their own.
  */
 fun hardExitAfterDoublePress(exitConfirmed: Boolean): Boolean = exitConfirmed
+
+/**
+ * Whether the workspace is open enough to receive work.
+ *
+ * The root screen already refuses to *show* the workspace behind these gates, but a share from
+ * another app never asks the root: it arrives on the activity's intent and writes straight into the
+ * view model. Measured 2026-11-03: with the mail wait on screen, `ACTION_SEND` still ran
+ * `parseAndLoadTranscript()`. One predicate, read by both the screen and the road, so they cannot
+ * drift apart.
+ */
+fun workspaceMayOpen(
+    signedIn: Boolean,
+    manualSignInRequested: Boolean,
+    signInRequiredOnStart: Boolean,
+    pendingVerificationEmail: String?,
+    lockInWay: Boolean
+): Boolean =
+    !lockInWay &&
+        !shouldShowVerification(pendingVerificationEmail, lockInWay) &&
+        !shouldShowAuth(signedIn, manualSignInRequested, signInRequiredOnStart)
