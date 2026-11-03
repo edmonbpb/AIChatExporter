@@ -29,6 +29,22 @@ class AuthErrorTranslationTest {
     }
 
     @Test
+    fun aMissingAccountAndAWrongPasswordAnswerIdentically() {
+        // The reset road already masks a stranger as the owner (resetOutcomeFor). The sign-in road
+        // must not be the door left open: whatever the provider's console setting says, one sentence
+        // for both answers means the app is never an oracle for "is this address registered".
+        assertEquals(authErrorFa("ERROR_WRONG_PASSWORD"), authErrorFa("ERROR_USER_NOT_FOUND"))
+        assertEquals(authErrorFa("ERROR_WRONG_PASSWORD"), authErrorFa("ERROR_INVALID_LOGIN_CREDENTIAL"))
+    }
+
+    @Test
+    fun theSharedSentenceBlamesNeitherHalfAlone() {
+        val sentence = authErrorFa("ERROR_USER_NOT_FOUND")
+        assertFalse("must not name the address as the missing half", sentence.contains("ثبت نشده"))
+        assertTrue(sentence.contains("رمز"))
+    }
+
+    @Test
     fun anUnknownCodeStillAnswersInPersianAndBlamesNothingSpecific() {
         val sentence = authErrorFa("ERROR_SOMETHING_NEW")
         assertTrue(sentence.isNotBlank())

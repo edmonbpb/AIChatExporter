@@ -34,8 +34,10 @@ internal fun authErrorFa(errorCode: String?): String = when (errorCode) {
     "ERROR_INVALID_EMAIL" -> "نشانی ایمیل قابل قبول نبود؛ آن را بررسی کن."
     "ERROR_EMAIL_ALREADY_IN_USE" -> "با همین نشانی قبلاً حساب ساخته شده است؛ وارد شو یا رمز را بازیابی کن."
     "ERROR_WEAK_PASSWORD" -> "رمز عبور ضعیف است؛ حداقل ۶ کاراکتر لازم دارد."
-    "ERROR_USER_NOT_FOUND" -> "چنین حسابی در این برنامه ثبت نشده است."
-    "ERROR_WRONG_PASSWORD" -> "رمز عبور درست نبود."
+    // Both halves of a failed password check answer the same sentence. The reset road already refuses
+    // to confirm which addresses exist; a sign-in that says "no such account" would hand the same
+    // answer back through a different door.
+    "ERROR_USER_NOT_FOUND", "ERROR_WRONG_PASSWORD" -> "ایمیل یا رمز عبور درست نبود."
     // Enumeration protection makes this the only code a password check answers with, and it covers
     // both "no such account" and "wrong password" - so the sentence has to stay true for both.
     "ERROR_INVALID_LOGIN_CREDENTIAL" -> "ایمیل یا رمز عبور درست نبود."
